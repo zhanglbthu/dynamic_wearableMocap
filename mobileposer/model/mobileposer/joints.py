@@ -36,17 +36,12 @@ class Joints(L.LightningModule):
         self.num_future_frames = model_config.future_frames
         self.num_total_frames = self.num_past_frames + self.num_future_frames
 
-        if self.winit:
-            print("Using RNN model winit")
-            self.joints = RNNWithInit(n_input=self.input_dim, n_output=24 * 3, n_hidden=512,
-                                    n_rnn_layer=2, dropout=0.4) # joint estimation model with init
-        else:
-            print("Using biRNN model")
-            self.joints = RNN(self.input_dim, 24 * 3, 256)
+        # print("Using biRNN model")
+        self.joints = RNN(self.input_dim, 24 * 3, 256)
         
-        # log input and output dimensions
-        print(f"Input dimensions: {self.input_dim}")
-        print(f"Output dimensions: {24 * 3}")
+        # # log input and output dimensions
+        # print(f"Input dimensions: {self.input_dim}")
+        # print(f"Output dimensions: {24 * 3}")
         
         # loss function 
         self.loss = nn.MSELoss()

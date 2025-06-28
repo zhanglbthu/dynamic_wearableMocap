@@ -38,9 +38,9 @@ class Velocity(L.LightningModule):
         self.vel = RNN(self.input_dim, 24 * 3, 256, bidirectional=False)  # per-frame velocity of the root joint. 
         self.rnn_state = None
 
-        # log input and output dimensions
-        print(f"Input dimensions: {self.input_dim}")
-        print(f"Output dimensions: {24*3}")
+        # # log input and output dimensions
+        # print(f"Input dimensions: {self.input_dim}")
+        # print(f"Output dimensions: {24*3}")
         
         # loss function 
         self.loss = nn.MSELoss()

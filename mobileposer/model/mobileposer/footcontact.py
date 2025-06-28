@@ -35,9 +35,9 @@ class FootContact(L.LightningModule):
         # model definitions
         self.footcontact = RNN(self.input_dim, 2, 64)  # foot-ground probability model
 
-        # log input and output dimensions
-        print(f"Input dimensions: {self.input_dim}")
-        print(f"Output dimensions: 2")
+        # # log input and output dimensions
+        # print(f"Input dimensions: {self.input_dim}")
+        # print(f"Output dimensions: 2")
         
         # loss function (binary cross-entropy)
         self.loss = nn.BCEWithLogitsLoss()

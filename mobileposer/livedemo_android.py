@@ -1,5 +1,4 @@
 import time
-import socket
 import torch
 from pygame.time import Clock
 
@@ -15,10 +14,12 @@ from auxiliary import calibrate_q, quaternion_inverse
 from utils.model_utils import load_mobileposer_model, load_heightposer_model
 import numpy as np
 import matplotlib
-from utils.data_utils import _foot_min, _lfoot_min, _rfoot_min
 from argparse import ArgumentParser
 import keyboard
 import datetime
+
+from TicOperator import *
+from my_model import *
 
 colors = matplotlib.colormaps['tab10'].colors
 body_model = art.ParametricModel(paths.smpl_file, device='cuda')
@@ -138,10 +139,26 @@ if __name__ == '__main__':
     
     n_calibration = 2
     
-    # set baseline network
-    ckpt_path = "data/checkpoints/heightposer_RNNwInit/lw_rp/base_model.pth"
-    net = load_heightposer_model(ckpt_path, combo_id=model_config.combo_id)
+    # # set baseline network (heightposer_version)
+    # ckpt_path = "data/checkpoints/heightposer_RNNwInit/lw_rp/base_model.pth"
+    # net = load_heightposer_model(ckpt_path, combo_id=model_config.combo_id)
+    # print('HeightPoser model loaded.')
+    
+    # set mobileposer network
+    ckpt_path = "data/checkpoints/mobileposer/lw_rp/base_model.pth"
+    net = load_mobileposer_model(ckpt_path, combo_id=model_config.combo_id)
     print('Mobileposer model loaded.')
+    
+    # set calibrator model
+    tic = TIC(stack=3, n_input=imu_num * (3 + 3 * 3), n_output=imu_num * 6)
+    tic.restore("data/checkpoints/calibrator/TIC_MP/TIC_20.pth")
+    tic = tic.to(device).eval()
+    print('TIC model loaded.')
+    
+    # set operator model
+    ts = TicOperator(TIC_network=tic, imu_num=imu_num, data_frame_rate=30)
+    ts.reset()
+    print('TicOperator model loaded.')
 
     qIC_list, qOS_list = align_sensor(sensor_set=sensor_set, n_calibration=2)
     RMI, RSB = tpose_calibration(n_calibration)
@@ -152,6 +169,8 @@ if __name__ == '__main__':
     data = {'RMI': RMI, 'RSB': RSB, 'aM': [], 'RMB': []}
     
     net.eval()
+    
+    idx = 0
 
     with torch.no_grad(), MotionViewer(1, overlap=False) as viewer:
         while True:
@@ -175,26 +194,30 @@ if __name__ == '__main__':
                 
                 aIS_sensor = RIS_sensor.squeeze(0).mm( - aSS_sensor.unsqueeze(-1)).squeeze(-1) + torch.tensor([0., 0., 9.8]) 
                 
-                if i == 0:
-                    index = 3
-                else:
-                    index = 0
+                index = 3 if i == 0 else 0
 
                 RIS[index, :, :] = RIS_sensor[0, :, :]
 
                 aI[index, :] = aIS_sensor
-                
-            RMB = RMI.matmul(RIS).matmul(RSB) # [6, 3, 3]
-            aM = aI.mm(RMI.t()) # [6, 3]
             
+            combo = [0, 3]
+            RMB = RMI.matmul(RIS).matmul(RSB)[combo] # [2, 3, 3]
+            aM = aI.mm(RMI.t())[combo] # [2, 3]
+            
+            # calibrate acc and ori
+            RMB, aM = ts.run_frame(RMB, aM, trigger_t=1, idx=idx)
+
+            RMB = RMB.view(imu_num, 3, 3)
+            aM = aM.view(imu_num, 3)
+
             oris.append(RMB)
             accs.append(aM)
             
-            combo = [0, 3]
+            # combo = [0, 3]
+            # aM = aM[combo] / amass.acc_scale 
+            # RMB = RMB[combo]
             
-            aM = aM[combo] / amass.acc_scale 
-            RMB = RMB[combo]
-            
+            aM = aM / amass.acc_scale
             input = torch.cat([aM.flatten(), RMB.flatten()], dim=0).to("cuda")
             
             pose = net.forward_frame(input)
@@ -206,6 +229,8 @@ if __name__ == '__main__':
             zero_tran = np.array([0, 0, 0])  
             viewer.update_all([pose], [zero_tran], render=False)
             viewer.render()
+            
+            idx += 1
             
             print('\r', clock.get_fps(), end='')
             

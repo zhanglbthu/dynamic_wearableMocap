@@ -36,10 +36,10 @@ class Poser(L.LightningModule):
         # model definitions
         self.pose = RNN(self.input_dim, 16*6, 256) # pose estimation model
         
-        # log input and output dimensions
-        if torch.cuda.current_device() == 0:
-            print(f"Input dimensions: {self.input_dim}")
-            print(f"Output dimensions: {16*6}")
+        # # log input and output dimensions
+        # if torch.cuda.current_device() == 0:
+        #     print(f"Input dimensions: {self.input_dim}")
+        #     print(f"Output dimensions: {16*6}")
         
         # loss function
         self.loss = nn.MSELoss()

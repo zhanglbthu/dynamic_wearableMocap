@@ -2,6 +2,13 @@ import torch
 from pathlib import Path
 from enum import Enum, auto
 
+imu_num = 2
+unit_r6d = torch.FloatTensor([[1, 0, 0, 0, 1, 0]])
+
+amass_data = ['HumanEva', 'MPI_HDM05', 'SFU', 'MPI_mosh', 'Transitions_mocap', 'SSM_synced', 'CMU',
+              'TotalCapture', 'Eyes_Japan_Dataset', 'KIT', 'BMLmovi', 'EKUT', 'TCD_handMocap', 'ACCAD',
+              'BioMotionLab_NTroje', 'BMLhandball', 'MPI_Limits', 'DFaust67']
+
 class train_hypers:
     """Hyperparameters for training."""
     batch_size = 256
@@ -29,11 +36,8 @@ class paths:
     raw_amass = Path("/root/autodl-tmp/mobileposer/dataset_raw/AMASS")           # TODO: replace with your path
     raw_dip = Path("/root/autodl-tmp/mobileposer/dataset_raw/DIP_IMU")           # TODO: replace with your path
     raw_imuposer = Path("/root/autodl-tmp/mobileposer/dataset_raw/imuposer_dataset")     # TODO: replace with your path
-    # eval_dir = root_dir / "data/processed_datasets/eval"
-    # processed_datasets = root_dir / "data/processed_datasets"
     eval_dir = Path("/root/autodl-tmp/mobileposer/eval")
     processed_datasets = Path("/root/autodl-tmp/mobileposer/dataset_work")
-    # processed_datasets = Path("data/dataset_work")
 
     # livedemo record directory
     temp_dir = Path("data/livedemo/temp")
@@ -192,9 +196,11 @@ class datasets:
     # Window length of IMU and Pose data 
     window_length = 125
 
-
 class joint_set:
     """Joint sets configurations."""
+    joint_name_list = ["pelvis", "l_hip", "r_hip", "spine1", "l_knee", "r_knee", "spine2", "l_ankle", "r_ankle",
+                       "spine3", "l_toe", "r_toe", "neck", "l_collar", "r_collar", "head", "l_shoulder", "r_shoulder",
+                       "l_elbow", "r_elbow", "l_wrist", "r_wrist", "l_palm", "r_palm"]
     gravity_velocity = -0.018
 
     full = list(range(0, 24))
@@ -217,23 +223,3 @@ class joint_set:
 
     lower_body = [0, 1, 2, 4, 5, 7, 8, 10, 11]
     lower_body_parent = [None, 0, 0, 1, 2, 3, 4, 5, 6]
-
-
-class sensor: 
-    """Sensor parameters."""
-    device_ids = {
-        'Left_phone': 0,
-        'Left_watch': 1,
-        'Left_headphone': 2,
-        'Right_phone': 3,
-        'Right_watch': 4
-    }
-
-
-class Devices(Enum):
-    """Device IDs."""
-    Left_Phone = auto()
-    Left_Watch = auto()
-    Right_Headphone = auto()
-    Right_Phone = auto()
-    Right_Watch = auto()

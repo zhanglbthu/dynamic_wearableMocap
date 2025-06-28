@@ -9,10 +9,9 @@ from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
 import time
 
-from mobileposer.config import *
-from mobileposer.utils.model_utils import reduced_pose_to_full
-from mobileposer.helpers import *
-import mobileposer.articulate as art
+from config import *
+from utils.model_utils import reduced_pose_to_full
+import articulate as art
 from model.mobileposer.poser import Poser
 from model.mobileposer.joints import Joints
 from model.mobileposer.velocity import Velocity
@@ -65,12 +64,6 @@ class MobilePoserNet(L.LightningModule):
         self.imu = None
         self.rnn_state = None
 
-        if model_config.physics:
-            print('Using Physics Optimizer')
-            from dynamics import PhysicsOptimizer
-            self.dynamics_optimizer = PhysicsOptimizer(debug=False)
-            self.dynamics_optimizer.reset_states()
-
         # track stats
         self.validation_step_loss = []
         self.training_step_loss = []
@@ -94,7 +87,7 @@ class MobilePoserNet(L.LightningModule):
         return (p.clamp(self.prob_threshold[0], self.prob_threshold[1]) - self.prob_threshold[0]) / (self.prob_threshold[1] - self.prob_threshold[0])
     
     def _reduced_global_to_full(self, reduced_pose):
-        pose = art.math.r6d_to_rotation_matrix(reduced_pose).view(-1, joint_set.n_reduced_old, 3, 3)
+        pose = art.math.r6d_to_rotation_matrix(reduced_pose).view(-1, joint_set.n_reduced, 3, 3)
         pose = reduced_pose_to_full(pose.unsqueeze(0)).squeeze(0).view(-1, 24, 3, 3)
         pred_pose = self.global_to_local_pose(pose)
         pred_pose[:, joint_set.ignored] = torch.eye(3, device=self.C.device)
@@ -131,7 +124,7 @@ class MobilePoserNet(L.LightningModule):
         return pred_pose, pred_joints, pred_vel, foot_contact
 
     @torch.no_grad()
-    def forward_online(self, data, input_lengths=None, tran=False):
+    def forward_frame(self, data, input_lengths=None, tran=False):
         
         imu = data.repeat(self.num_total_frames, 1) if self.imu is None else torch.cat((self.imu[1:], data.view(1, -1)))
 
@@ -169,13 +162,6 @@ class MobilePoserNet(L.LightningModule):
         self.last_lfoot_pos, self.last_rfoot_pos = lfoot_pos, rfoot_pos
         self.imu = imu.squeeze(0)
         self.last_root_pos += velocity
-        
-        if model_config.physics:
-            joint_vel = vel.view(-1, 24, 3)
-            
-            # optimize pose
-            pose, _ = self.dynamics_optimizer.optimize_frame(pose, joint_vel[self.num_past_frames]*amass.vel_scale, contact, imu)
-            pose = pose.view(24, 3, 3)
         
         if tran:
             return pose, self.last_root_pos.clone()
