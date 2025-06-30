@@ -99,7 +99,7 @@ def evaluate_pose(model, dataset, calibrator:TicOperator, save_dir=None, use_cal
                 acc = x[:, :imu_num * 3] * amass.acc_scale
                 rot = x[:, imu_num * 3:]
                 
-                rot_cali, acc_cali, _, _ = calibrator.run(rot, acc, trigger_t=1)
+                rot_cali, acc_cali, _, _, use_calis = calibrator.run(rot, acc, trigger_t=1)
                 acc_cali = acc_cali / amass.acc_scale
                 
                 x = torch.cat((acc_cali.flatten(1), rot_cali.flatten(1)), dim=1)
@@ -121,7 +121,8 @@ def evaluate_pose(model, dataset, calibrator:TicOperator, save_dir=None, use_cal
             
             if save_dir:
                 torch.save({'pose_t': pose_t, 
-                            'pose_p': pose_p, 
+                            'pose_p': pose_p,
+                            'use_cali': use_calis if use_cali else None,
                             },
                            save_dir / f"{idx}.pt")
 

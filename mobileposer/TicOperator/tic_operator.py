@@ -50,13 +50,13 @@ def rotation_diversity(rot):
 
 class TicOperator():
     def __init__(self, TIC_network, imu_num=6, ego_imu_idx=-1, data_frame_rate=60):
-        self.buffer_size = 512
+        self.buffer_size = config.model_config.tic_ws
         # self.TR_drift = torch.Tensor([10, 10, 10, 10, 10, 0]) * 1
         # self.TR_offset = torch.Tensor([30, 50, 30, 30, 25, 15]) * 1
         # self.TR_drift = torch.Tensor([10, 0]) * 1
         # self.TR_offset = torch.Tensor([30, 30]) * 1
-        self.TR_drift = torch.Tensor([10, 0]) * 1
-        self.TR_offset = torch.Tensor([30, 30]) * 1
+        self.TR_drift = torch.Tensor([0, 0]) * 1
+        self.TR_offset = torch.Tensor([0, 0]) * 1
         self.data_frame_rate=data_frame_rate
         self.ego_idx = ego_imu_idx
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -70,6 +70,7 @@ class TicOperator():
         self.data_buffer = []
         self.imu_num = imu_num
         self.model = TIC_network
+        self.tic_ws = config.model_config.tic_ws
 
     def reset(self):
         self.R_DG = torch.eye(3).reshape(-1, 3, 3).repeat(self.imu_num, 1, 1).to(self.device)
@@ -89,10 +90,12 @@ class TicOperator():
         return torch.cat([acc.flatten(1), rot.flatten(1)], dim=-1)
 
     @torch.no_grad()
-    def dynamic_calibration(self, idx = -1):
-        if len(self.data_buffer) < 512:
-            return
-        frame_nums = 512
+    def dynamic_calibration(self):
+        use_cali = torch.zeros(self.imu_num, dtype=torch.bool).to(self.device)
+        
+        if len(self.data_buffer) < self.tic_ws:
+            return use_cali
+        frame_nums = self.tic_ws
 
         # down sample
         acc_cat_oris = torch.stack(self.data_buffer[-frame_nums:]).reshape(frame_nums, -1)[::self.data_frame_rate//30]
@@ -140,8 +143,12 @@ class TicOperator():
             
             self.R_DG = self.R_DG.matmul(delta_R_DG)
             self.R_BS = delta_R_BS.matmul(self.R_BS)
+            
+            use_cali = (trigger_drift | trigger_offset).bool().to(self.device)
 
             self.data_buffer = []
+        
+        return use_cali
 
     def run(self, rot, acc, trigger_t=1):
         self.reset()
@@ -153,13 +160,18 @@ class TicOperator():
         pred_drift = []
         pred_offset = []
         recali_data = []
+        use_calis = []
         for i in range(len(origin_acc_cat_rot)):
             recali_data.append(self.calibrate_step(origin_acc_cat_rot[i]))
             self.data_buffer.append(recali_data[-1].clone())
             pred_drift.append(self.R_DG.clone())
             pred_offset.append(self.R_BS.clone())
+            
+            use_cali = torch.zeros(self.imu_num, dtype=torch.bool).to(self.device)
             if i % trigger_gap == 0:
-                self.dynamic_calibration(idx=i)
+                use_cali = self.dynamic_calibration()
+            use_calis.append(use_cali)
+                
             if len(self.data_buffer) > self.buffer_size:
                 self.data_buffer = self.data_buffer[-self.buffer_size:]
 
@@ -167,7 +179,9 @@ class TicOperator():
         acc = recali_data[:, :3*self.imu_num].reshape(-1, self.imu_num, 3)
         rot = recali_data[:, 3 * self.imu_num:].reshape(-1, self.imu_num, 3, 3)
 
-        return rot, acc, torch.stack(pred_drift, dim=0), torch.stack(pred_offset, dim=0)
+        use_calis = torch.stack(use_calis, dim=0)
+        
+        return rot, acc, torch.stack(pred_drift, dim=0), torch.stack(pred_offset, dim=0), use_calis
     
     def run_frame(self, rot, acc, trigger_t=1, idx=-1):
         trigger_gap = int(self.data_frame_rate * trigger_t)
@@ -180,7 +194,7 @@ class TicOperator():
         recali_data.append(self.calibrate_step(origin_acc_cat_rot[0]))
         self.data_buffer.append(recali_data[-1].clone())
         if idx % trigger_gap == 0:
-            self.dynamic_calibration(idx=idx)
+            self.dynamic_calibration()
         if len(self.data_buffer) > self.buffer_size:
             self.data_buffer = self.data_buffer[-self.buffer_size:]
             
