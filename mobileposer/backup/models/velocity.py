@@ -6,9 +6,9 @@ import numpy as np
 import lightning as L
 from torch.optim.lr_scheduler import StepLR 
 
-from mobileposer.articulate.model import ParametricModel
-from mobileposer.models.rnn import RNN
-from mobileposer.config import *
+from articulate.model import ParametricModel
+from models.rnn import RNN
+from config import *
 
 
 class Velocity(L.LightningModule):

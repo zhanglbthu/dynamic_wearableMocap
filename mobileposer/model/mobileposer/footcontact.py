@@ -5,8 +5,8 @@ from torch.nn import functional as F
 import lightning as L
 import numpy as np
 
-from mobileposer.config import *
-import mobileposer.articulate as art
+from config import *
+import articulate as art
 from model.base_model.rnn import RNN
 
 

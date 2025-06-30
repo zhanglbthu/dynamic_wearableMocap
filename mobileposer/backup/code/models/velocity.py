@@ -6,10 +6,10 @@ import numpy as np
 import lightning as L
 from torch.optim.lr_scheduler import StepLR 
 
-from mobileposer.articulate.model import ParametricModel
-from mobileposer.models.rnn import RNN
-from mobileposer.config import *
-import mobileposer.articulate as art
+from articulate.model import ParametricModel
+from models.rnn import RNN
+from config import *
+import articulate as art
 
 
 class Velocity(L.LightningModule):

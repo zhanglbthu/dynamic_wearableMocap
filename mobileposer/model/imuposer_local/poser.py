@@ -5,9 +5,9 @@ import lightning as L
 from torch.nn import functional as F
 import numpy as np
 
-from mobileposer.config import *
-from mobileposer.utils.model_utils import reduced_pose_to_full
-import mobileposer.articulate as art
+from config import *
+from utils.model_utils import reduced_pose_to_full
+import articulate as art
 from model.base_model.rnn import RNN
 
 class Poser(L.LightningModule):

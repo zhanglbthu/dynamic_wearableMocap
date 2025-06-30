@@ -72,9 +72,9 @@ class TicOperator():
         self.model = TIC_network
 
     def reset(self):
-        self.R_DG = torch.eye(3).reshape(-1, 3, 3).repeat(self.imu_num, 1, 1)
-        self.R_BS = torch.eye(3).reshape(-1, 3, 3).repeat(self.imu_num, 1, 1)
-        self.GA = torch.FloatTensor([[0, -9.80848, 0]]).repeat(self.imu_num, 1).unsqueeze(-1)
+        self.R_DG = torch.eye(3).reshape(-1, 3, 3).repeat(self.imu_num, 1, 1).to(self.device)
+        self.R_BS = torch.eye(3).reshape(-1, 3, 3).repeat(self.imu_num, 1, 1).to(self.device)
+        self.GA = torch.FloatTensor([[0, -9.80848, 0]]).repeat(self.imu_num, 1).unsqueeze(-1).to(self.device)
         self.data_buffer = []
 
     @torch.no_grad()
@@ -82,6 +82,7 @@ class TicOperator():
         acc, rot = acc_cat_rot[0:self.imu_num * 3].view(-1, self.imu_num, 3, 1), acc_cat_rot[self.imu_num * 3:].view(-1,
                                                                                                         self.imu_num, 3,
                                                                                                         3)
+        
         rot = self.R_DG.transpose(-2, -1).matmul(rot).matmul(self.R_BS.transpose(-2, -1))
         acc = self.R_DG.transpose(-2, -1).matmul(acc - self.GA) + self.GA
 
@@ -116,8 +117,8 @@ class TicOperator():
         # t2 = time.time()
         # print('TIC Network:', t2 - t1)
 
-        delta_R_DG = r6d_to_rotation_matrix(delta_R_DG.reshape(-1, 6).cpu())
-        delta_R_BS = r6d_to_rotation_matrix(delta_R_BS.reshape(-1, 6).cpu())
+        delta_R_DG = r6d_to_rotation_matrix(delta_R_DG.reshape(-1, 6))
+        delta_R_BS = r6d_to_rotation_matrix(delta_R_BS.reshape(-1, 6))
 
         delta_R_DG = ego_drift_regularization(delta_R_DG)
 
@@ -133,10 +134,10 @@ class TicOperator():
 
         if min(skip_count_drift, skip_count_offset) < self.imu_num:
             if skip_count_drift > 0:
-                delta_R_DG[skip_mask_drift, :, :] = torch.eye(3).unsqueeze(0).repeat(skip_count_drift, 1, 1)
+                delta_R_DG[skip_mask_drift, :, :] = torch.eye(3).unsqueeze(0).repeat(skip_count_drift, 1, 1).to(self.device)
             if skip_count_offset > 0:
-                delta_R_BS[skip_mask_offset, :, :] = torch.eye(3).unsqueeze(0).repeat(skip_count_offset, 1, 1)
-
+                delta_R_BS[skip_mask_offset, :, :] = torch.eye(3).unsqueeze(0).repeat(skip_count_offset, 1, 1).to(self.device)
+            
             self.R_DG = self.R_DG.matmul(delta_R_DG)
             self.R_BS = delta_R_BS.matmul(self.R_BS)
 
@@ -152,7 +153,7 @@ class TicOperator():
         pred_drift = []
         pred_offset = []
         recali_data = []
-        for i in tqdm(range(len(origin_acc_cat_rot))):
+        for i in range(len(origin_acc_cat_rot)):
             recali_data.append(self.calibrate_step(origin_acc_cat_rot[i]))
             self.data_buffer.append(recali_data[-1].clone())
             pred_drift.append(self.R_DG.clone())

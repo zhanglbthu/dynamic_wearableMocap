@@ -2,8 +2,8 @@ import torch.nn as nn
 from torch.nn.functional import relu
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
-from mobileposer.config import *
-import mobileposer.articulate as art
+from config import *
+import articulate as art
 
 
 class RNN(torch.nn.Module):

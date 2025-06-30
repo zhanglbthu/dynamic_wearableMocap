@@ -4,7 +4,7 @@ import glob
 import datetime
 from typing import Any, Optional, Iterable
 
-from mobileposer.config import paths, amass, datasets
+from config import paths, amass, datasets
 
 
 def make_dir(path: str):

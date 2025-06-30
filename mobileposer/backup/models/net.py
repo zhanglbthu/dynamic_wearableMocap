@@ -9,14 +9,13 @@ from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
 import time
 
-from mobileposer.config import *
-from mobileposer.utils.model_utils import reduced_pose_to_full
-from mobileposer.helpers import *
-import mobileposer.articulate as art
-from mobileposer.models.poser import Poser
-from mobileposer.models.joints import Joints
-from mobileposer.models.footcontact import FootContact
-from mobileposer.models.velocity import Velocity
+from config import *
+from utils.model_utils import reduced_pose_to_full
+import articulate as art
+from models.poser import Poser
+from models.joints import Joints
+from models.footcontact import FootContact
+from models.velocity import Velocity
 
 
 class MobilePoserNet(L.LightningModule):
@@ -62,11 +61,6 @@ class MobilePoserNet(L.LightningModule):
         self.current_root_y = 0
         self.imu = None
         self.rnn_state = None
-
-        if getenv("PHYSICS"):
-            from dynamics import PhysicsOptimizer
-            self.dynamics_optimizer = PhysicsOptimizer(debug=False)
-            self.dynamics_optimizer.reset_states()
 
         # track stats
         self.validation_step_loss = []
@@ -156,28 +150,6 @@ class MobilePoserNet(L.LightningModule):
             current_root_y += velocity[i, 1].item()
         tran = torch.stack([velocity[:i+1].sum(dim=0) for i in range(velocity.shape[0])]) # velocity to root position
 
-        # Use a Physics Optimizer
-        if getenv("PHYSICS"):
-            pose = pose.view(-1, 24, 3, 3)
-            acc = torch.zeros((pose.shape[0], 5, 3))
-
-            # compute joint velocities
-            joint_velocity = vel.view(-1, 24, 3) * amass.vel_scale
-
-            pose_opt, tran_opt = [], []
-            for p, c, v, a in tqdm(zip(pose, contact, joint_velocity, acc), total=len(pose)):
-                p_opt, t_opt = self.dynamics_optimizer.optimize_frame(p, v, c, a)
-                
-                if isinstance(p_opt, np.ndarray):
-                    p_opt = torch.tensor(p_opt)
-                if isinstance(tran, np.ndarray):
-                    t_opt = torch.tensor(t_opt)
-                
-                pose_opt.append(p_opt)
-                tran_opt.append(t_opt)
-            
-            pose, _ = torch.stack(pose_opt), torch.stack(tran_opt).unsqueeze(0)
-
         return pose, pred_joints, tran, contact
 
     @torch.no_grad()
@@ -217,15 +189,6 @@ class MobilePoserNet(L.LightningModule):
         self.last_lfoot_pos, self.last_rfoot_pos = lfoot_pos, rfoot_pos
         self.imu = imu.squeeze(0)
         self.last_root_pos += velocity
-
-        # physics module
-        if getenv("PHYSICS"):
-            joint_velocity = vel.view(-1, 24, 3) 
-
-            # optimize pose
-            pose, _ = self.dynamics_optimizer.optimize_frame(pose, joint_velocity[self.num_past_frames]*amass.vel_scale, contact, imu)
-            pose = pose.view(24, 3, 3)
-            return pose, pred_joints.squeeze(0), self.last_root_pos.clone(), contact
 
         if debug:
             return pose, joints, self.last_root_pos.clone(), contact

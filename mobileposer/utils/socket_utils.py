@@ -2,7 +2,7 @@ import socket
 import time
 import numpy as np
 
-from mobileposer.constants import OUT_UDP_IP, OUT_UDP_PORT
+from constants import OUT_UDP_IP, OUT_UDP_PORT
 
 
 def init_sockets(host, ports):

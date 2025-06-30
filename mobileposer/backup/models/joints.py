@@ -5,9 +5,9 @@ import lightning as L
 from torch.nn import functional as F
 import numpy as np
 
-from mobileposer.config import *
-import mobileposer.articulate as art
-from mobileposer.models.rnn import RNN
+from config import *
+import articulate as art
+from models.rnn import RNN
 
 
 class Joints(L.LightningModule):

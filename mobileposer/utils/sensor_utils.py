@@ -2,8 +2,8 @@ import numpy as np
 from scipy.spatial.transform import Rotation as R
 from collections import deque
 
-from mobileposer.config import *
-from mobileposer.constants import *
+from config import *
+from constants import *
 
 
 class SensorData:

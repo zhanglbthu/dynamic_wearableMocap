@@ -15,9 +15,9 @@ from articulate.utils.unity import MotionViewer
 from articulate.utils.wearable import WearableSensorSet
 from auxiliary import calibrate_q, quaternion_inverse
 
-from mobileposer.utils.model_utils import load_model
-from mobileposer.models import MobilePoserNet
-from mobileposer.data import PoseDataset
+from utils.model_utils import load_model
+from models import MobilePoserNet
+from data import PoseDataset
 from kalman import KalmanFilter
 import numpy as np
 import sys

@@ -1,12 +1,12 @@
 import os
 
-# from mobileposer.models import MobilePoserNet, Poser, Joints, FootContact, Velocity
+# from models import MobilePoserNet, Poser, Joints, FootContact, Velocity
 from model.imuposer_local.poser import Poser as IMUPoser
 
-from model.mobileposer.joints import Joints as MobileJoints
-from model.mobileposer.poser import Poser as MobilePoser
-from model.mobileposer.velocity import Velocity as MobileVelocity
-from model.mobileposer.footcontact import FootContact as MobileFootContact
+from model.joints import Joints as MobileJoints
+from model.poser import Poser as MobilePoser
+from model.velocity import Velocity as MobileVelocity
+from model.footcontact import FootContact as MobileFootContact
 
 from model.heightposer.poser import Poser as HeightPoser
 from model.heightposer.velocity import Velocity as HeightVelocity

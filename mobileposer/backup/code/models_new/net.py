@@ -9,13 +9,12 @@ from torch.optim.lr_scheduler import StepLR
 from tqdm import tqdm
 import time
 
-from mobileposer.config import *
-from mobileposer.utils.model_utils import reduced_pose_to_full
-from mobileposer.helpers import *
-import mobileposer.articulate as art
-from mobileposer.models_new.poser import Poser
-from mobileposer.models_new.joints import Joints
-from mobileposer.models_new.velocity import Velocity
+from config import *
+from utils.model_utils import reduced_pose_to_full
+import articulate as art
+from models_new.poser import Poser
+from models_new.joints import Joints
+from models_new.velocity import Velocity
 
 class PoseNet(L.LightningModule):
     """
@@ -60,11 +59,6 @@ class PoseNet(L.LightningModule):
         self.current_root_y = 0
         self.imu = None
         self.rnn_state = None
-
-        if getenv("PHYSICS"):
-            from dynamics import PhysicsOptimizer
-            self.dynamics_optimizer = PhysicsOptimizer(debug=False)
-            self.dynamics_optimizer.reset_states()
 
         # track stats
         self.validation_step_loss = []

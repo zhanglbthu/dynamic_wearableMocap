@@ -3,7 +3,7 @@ import pygame
 from OpenGL.GL import *
 from OpenGL.GLU import *
 
-from mobileposer.config import *
+from config import *
 
 
 DEVICE_POSITIONS = [(-5, 0, -10.0), (-2.5, 0, -10.0), (0, 0, -10.0), (2.5, 0, -10.0), (5, 0, -10.0)]
