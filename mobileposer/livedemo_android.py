@@ -203,15 +203,18 @@ if __name__ == '__main__':
             combo = [0, 3]
             RMB = RMI.matmul(RIS).matmul(RSB)[combo] # [2, 3, 3]
             aM = aI.mm(RMI.t())[combo] # [2, 3]
-            
+
+            oris.append(RMB)
+            accs.append(aM)
+
             # calibrate acc and ori
             RMB, aM = ts.run_frame(RMB, aM, trigger_t=1, idx=idx)
 
             RMB = RMB.view(imu_num, 3, 3)
             aM = aM.view(imu_num, 3)
 
-            oris.append(RMB)
-            accs.append(aM)
+            # oris.append(RMB)
+            # accs.append(aM)
             
             # combo = [0, 3]
             # aM = aM[combo] / amass.acc_scale 
