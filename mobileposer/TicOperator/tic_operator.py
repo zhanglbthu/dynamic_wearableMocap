@@ -83,7 +83,6 @@ class TicOperator():
         acc, rot = acc_cat_rot[0:self.imu_num * 3].view(-1, self.imu_num, 3, 1), acc_cat_rot[self.imu_num * 3:].view(-1,
                                                                                                         self.imu_num, 3,
                                                                                                         3)
-        
         rot = self.R_DG.transpose(-2, -1).matmul(rot).matmul(self.R_BS.transpose(-2, -1))
         acc = self.R_DG.transpose(-2, -1).matmul(acc - self.GA) + self.GA
 

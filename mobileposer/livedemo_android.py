@@ -201,8 +201,8 @@ if __name__ == '__main__':
                 aI[index, :] = aIS_sensor
             
             combo = [0, 3]
-            RMB = RMI.matmul(RIS).matmul(RSB)[combo] # [2, 3, 3]
-            aM = aI.mm(RMI.t())[combo] # [2, 3]
+            RMB = RMI.matmul(RIS).matmul(RSB)[combo].to(device)
+            aM = aI.mm(RMI.t())[combo].to(device)
 
             oris.append(RMB)
             accs.append(aM)
