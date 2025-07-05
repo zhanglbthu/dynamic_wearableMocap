@@ -49,4 +49,15 @@ class TIC(BaseModel):
 
         return global_shift, local_shift
 
+class LSTMIC(BaseModel):
+    # TODO: Implement LSTM-based Inertial Calibration model
+    def __init__(self, n_input, n_output, hidden_size=256, num_layers=3):
+        super().__init__()
+        self.lstm = nn.LSTM(input_size=n_input, hidden_size=hidden_size, num_layers=num_layers, batch_first=True)
+        self.mapping = nn.Linear(hidden_size, n_output)
 
+    def forward(self, x):
+        x, _ = self.lstm(x)
+        x = x.mean(dim=1)  # Average over the sequence length
+        x = self.mapping(x)
+        return x

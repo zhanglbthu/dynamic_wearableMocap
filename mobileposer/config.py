@@ -34,6 +34,7 @@ class paths:
     smpl_file = root_dir / "smpl/basicmodel_m.pkl"
     weights_file = root_dir / "data" / "checkpoints/official/weights.pth"
     raw_amass = Path("/root/autodl-tmp/mobileposer/dataset_raw/AMASS")           # TODO: replace with your path
+    amass_dir = '/root/autodl-tmp/data/AMASS_IMU6'
     raw_dip = Path("/root/autodl-tmp/mobileposer/dataset_raw/DIP_IMU")           # TODO: replace with your path
     raw_imuposer = Path("/root/autodl-tmp/mobileposer/dataset_raw/imuposer_dataset")     # TODO: replace with your path
     eval_dir = Path("/root/autodl-tmp/mobileposer/eval")
