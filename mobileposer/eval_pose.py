@@ -99,7 +99,7 @@ def evaluate_pose(model, dataset, calibrator:TicOperator, save_dir=None, use_cal
                 acc = x[:, :imu_num * 3] * amass.acc_scale
                 rot = x[:, imu_num * 3:]
                 
-                rot_cali, acc_cali, _, _, use_calis = calibrator.run(rot, acc, trigger_t=1)
+                rot_cali, acc_cali, _, _, use_calis = calibrator.run_per_frame(rot, acc)
                 acc_cali = acc_cali / amass.acc_scale
                 
                 x = torch.cat((acc_cali.flatten(1), rot_cali.flatten(1)), dim=1)
@@ -157,12 +157,17 @@ if __name__ == '__main__':
     else:
         raise ValueError(f"Model {model_name} not supported.")
     
-    # load calibrator model
-    tic = TIC(stack=3, n_input=imu_num * (3 + 3 * 3), n_output=imu_num * 6)
-    tic.restore("data/checkpoints/calibrator/TIC_MP/TIC_20.pth")
-    tic = tic.to(device).eval()
+    # # load calibrator model
+    # tic = TIC(stack=3, n_input=imu_num * (3 + 3 * 3), n_output=imu_num * 6)
+    # tic.restore("data/checkpoints/calibrator/TIC_MP/TIC_20.pth")
     
-    ts = TicOperator(TIC_network=tic, imu_num=imu_num, data_frame_rate=30)
+    # # load LSTM calibrator model
+    lstm_ic = LSTMIC(n_input=imu_num * (3 + 3 * 3), n_output=imu_num * 6)
+    lstm_ic.restore("data/checkpoints/calibrator/LSTMIC_frame/LSTMIC_frame_2.pth")
+    
+    net = lstm_ic.to(device).eval()
+    
+    ts = TicOperator(TIC_network=net, imu_num=imu_num, data_frame_rate=30)
     ts.reset()
     if args.use_cali:
         print('Using calibrator model for evaluation.')
@@ -172,7 +177,7 @@ if __name__ == '__main__':
     dataset = PoseDataset(fold=fold, evaluate=args.dataset)
     
     # set differenet save_model name from args.calibrate
-    save_model_name = model_config.name + ('_calibrated' if args.use_cali else '')
+    save_model_name = model_config.name + ('_LSTMcalibrated' if args.use_cali else '')
     
     save_dir = Path('data') / 'eval' / save_model_name / model_config.combo_id / args.dataset
 

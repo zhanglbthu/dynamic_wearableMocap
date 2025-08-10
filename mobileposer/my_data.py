@@ -152,8 +152,8 @@ class IMUData(BaseDataset):
         acc = acc.unsqueeze(-1)
 
         """
-        rot: [2822654, 6, 3, 3]
-        acc: [2822654, 6, 3, 1]
+        rot: [2822654, imu_num, 3, 3]
+        acc: [2822654, imu_num, 3, 1]
         head_acc: [2822654, 14, 3, 1]
         """
         return {'imu_rot': rot,

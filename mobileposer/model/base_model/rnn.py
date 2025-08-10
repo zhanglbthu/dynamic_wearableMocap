@@ -103,7 +103,7 @@ class RNN(torch.nn.Module):
         self.linear2 = nn.Linear(in_features=n_hidden * (2 if bidirectional else 1), out_features=n_output)
         self.dropout = nn.Dropout(p=dropout)
 
-    def forward(self, x, seq_lengths=None, h=None):
+    def forward(self, x, seq_lengths=None, h=None, mean_output=False):
         # pass input data through a linear layer
         data = self.dropout(relu(self.linear1(x)))
         # pack the padded sequences
@@ -111,6 +111,11 @@ class RNN(torch.nn.Module):
             data = pack_padded_sequence(data, seq_lengths, batch_first=True, enforce_sorted=False)
         # pass input to RNN
         data, h = self.rnn(data, h)
+        
+        if mean_output:
+            # if mean_output is True, return the mean of the output
+            data = data.mean(dim=1, keepdim=False)
+        
         # pack the padded sequences
         output_lengths = None
         if seq_lengths is not None:

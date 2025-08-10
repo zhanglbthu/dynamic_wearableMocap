@@ -12,6 +12,11 @@ from .model import ParametricModel
 from .math import *
 import torch
 
+def mean_vector_length(tensor):
+    # 计算每个向量的模长
+    vector_lengths = torch.norm(tensor, dim=1)
+    # 返回模长的平均值
+    return torch.mean(vector_lengths)
 
 class BasePoseEvaluator:
     r"""
@@ -151,6 +156,56 @@ class RotationErrorEvaluator:
         """
         return radian_to_degree(angle_between(p, t, self.rep).mean())
 
+class PerJointRotationErrorEvaluator:
+    def __init__(self, rep=RotationRepresentation.ROTATION_MATRIX):
+        r"""
+        Init a rotation error evaluator.
+
+        :param rep: The rotation representation used in the input.
+        """
+        self.rep = rep
+
+    def __call__(self, p: torch.Tensor, t: torch.Tensor, joint_num, return_each=False):
+        r"""
+        Get the mean angle between to sets of rotations.
+
+        :param p: Tensor that can reshape to [n, rep_dim] that stands for n rotations.
+        :param t: Tensor that can reshape to [n, rep_dim] that stands for n rotations.
+        :return: Mean angle in degrees between all corresponding rotations.
+        """
+        p = p.reshape(p.shape[0], joint_num, -1)
+        t = t.reshape(t.shape[0], joint_num, -1)
+        if return_each:
+            return torch.cat(
+                [radian_to_degree(angle_between(p[:, i, :], t[:, i, :], self.rep)).unsqueeze(0) for i in
+                 range(joint_num)], dim=0)
+        return torch.cat([radian_to_degree(angle_between(p[:,i,:], t[:,i,:], self.rep).mean().unsqueeze(0)) for i in range(joint_num)], dim=0)
+
+class PerJointAccErrorEvaluator:
+    def __init__(self):
+        r"""
+        Init a rotation error evaluator.
+
+        :param rep: The rotation representation used in the input.
+        """
+
+    def __call__(self, p: torch.Tensor, t: torch.Tensor, joint_num, return_each=False):
+        r"""
+        Get the mean angle between to sets of rotations.
+
+        :param p: Tensor that can reshape to [n, rep_dim] that stands for n rotations.
+        :param t: Tensor that can reshape to [n, rep_dim] that stands for n rotations.
+        :return: Mean angle in degrees between all corresponding rotations.
+        """
+        p = p.reshape(p.shape[0], joint_num, -1)
+        t = t.reshape(t.shape[0], joint_num, -1)
+
+        # print(mean_vector_length((p[:, 0, :] - t[:, 0, :])))
+        if return_each:
+            return torch.cat([torch.norm(p[:, i, :] - t[:, i, :], dim=-1).unsqueeze(0) for i in range(joint_num)],
+                             dim=0)
+        return torch.cat([mean_vector_length(p[:,i,:] - t[:,i,:]).unsqueeze(0) for i in range(joint_num)], dim=0)
+
 
 class PerJointErrorEvaluator(BasePoseEvaluator):
     r"""
@@ -288,8 +343,11 @@ class FullMotionEvaluator(BasePoseEvaluator):
         self.align_joint = 0 if align_joint is None else align_joint.value
         self.fps = fps
         self.joint_mask = joint_mask
+        self.sip_mask = torch.tensor([1,2,16,17])
+        self.metrics_dict = {'Joint global rotation err':3, 'Joint position err':0, 'SIP':10, 'Mesh err':1, 'Trans err':6, 'Joint local rotation err':2,
+                             'Jitter pred':4, 'Jitter gt':5}
 
-    def __call__(self, pose_p, pose_t, shape_p=None, shape_t=None, tran_p=None, tran_t=None):
+    def __call__(self, pose_p, pose_t, shape_p=None, shape_t=None, tran_p=None, tran_t=None, return_step_result=False, trans_windows_sec=1):
         r"""
         Get the measured errors. The returned tensor in shape [10, 2] contains mean and std of:
           0.  Joint position error (align_joint position aligned).
@@ -313,7 +371,7 @@ class FullMotionEvaluator(BasePoseEvaluator):
         :param tran_t: True translations in shape [batch_size, 3]. Use None for zeros.
         :return: Tensor in shape [10, 2] for the mean and std of all errors.
         """
-        f = self.fps
+        f = self.fps * trans_windows_sec
         pose_local_p, shape_p, tran_p = self._preprocess(pose_p, shape_p, tran_p)
         pose_local_t, shape_t, tran_t = self._preprocess(pose_t, shape_t, tran_t)
         pose_global_p, joint_p, vertex_p = self.model.forward_kinematics(pose_local_p, shape_p, tran_p, calc_mesh=True)
@@ -326,12 +384,14 @@ class FullMotionEvaluator(BasePoseEvaluator):
         gae = radian_to_degree(angle_between(pose_global_p, pose_global_t).view(pose_p.shape[0], -1))         # N, J
         jkp = ((joint_p[3:] - 3 * joint_p[2:-1] + 3 * joint_p[1:-2] - joint_p[:-3]) * (f ** 3)).norm(dim=2)   # N, J
         jkt = ((joint_t[3:] - 3 * joint_t[2:-1] + 3 * joint_t[1:-2] - joint_t[:-3]) * (f ** 3)).norm(dim=2)   # N, J
-        te = ((joint_p[f:, :1] - joint_p[:-f, :1]) - (joint_t[f:, :1] - joint_t[:-f, :1])).norm(dim=2)*100    # N, 1
-        mje = je[:, self.joint_mask] if self.joint_mask is not None else torch.zeros(1)     # N, mJ
-        mlae = lae[:, self.joint_mask] if self.joint_mask is not None else torch.zeros(1)   # N, mJ
-        mgae = gae[:, self.joint_mask] if self.joint_mask is not None else torch.zeros(1)   # N, mJ
+        te = ((joint_p[f:, :1] - joint_p[:-f, :1]) - (joint_t[f:, :1] - joint_t[:-f, :1])).norm(dim=2)        # N, 1
+        mje = je[:, self.joint_mask] if self.joint_mask is not None else torch.zeros(len(je), 1)     # N, mJ
+        mlae = lae[:, self.joint_mask] if self.joint_mask is not None else torch.zeros(len(je), 1)   # N, mJ
+        mgae = gae[:, self.joint_mask] if self.joint_mask is not None else torch.zeros(len(je), 1)   # N, mJ
+        sip = gae[:, self.sip_mask] if self.sip_mask is not None else torch.zeros(len(je), 1)  # N, mJ
 
-        return torch.tensor([[je.mean(),   je.std(dim=0).mean()],
+
+        result = torch.tensor([[je.mean(),   je.std(dim=0).mean()],
                              [ve.mean(),   ve.std(dim=0).mean()],
                              [lae.mean(),  lae.std(dim=0).mean()],
                              [gae.mean(),  gae.std(dim=0).mean()],
@@ -340,4 +400,111 @@ class FullMotionEvaluator(BasePoseEvaluator):
                              [te.mean(),   te.std(dim=0).mean()],
                              [mje.mean(),  mje.std(dim=0).mean()],
                              [mlae.mean(), mlae.std(dim=0).mean()],
-                             [mgae.mean(), mgae.std(dim=0).mean()]])
+                             [mgae.mean(), mgae.std(dim=0).mean()],
+                             [sip.mean(), sip.std(dim=0).mean()]])
+        # print(result)
+
+        if return_step_result:
+            result = [je.mean(dim=1), ve.mean(dim=1), lae.mean(dim=1), gae.mean(dim=1), jkp.mean(dim=1),
+                                 jkt.mean(dim=1),
+                                 te.mean(dim=1),
+                                 mje.mean(dim=1),
+                                 mlae.mean(dim=1),
+                                 mgae.mean(dim=1),
+                                 sip.mean(dim=1)]
+            result = tuple(result)
+        return result
+
+
+def get_ego_yaw(R, root_idx=-1):
+    root_ori = R[:, root_idx]
+    root_euler = rotation_matrix_to_euler_angle(r=root_ori, seq='YZX')
+    root_euler[:, [1, 2]] *= 0
+    yaw_euler = root_euler
+    yaw_rot = euler_angle_to_rotation_matrix(q=yaw_euler, seq='YZX').unsqueeze(1)
+    return yaw_rot
+
+class TransEvaluator(BasePoseEvaluator):
+    r"""
+    Evaluator for full motions (pose sequences with global translations). Plenty of metrics.
+    """
+    def __init__(self, official_model_file: str, align_joint=None, rep=RotationRepresentation.ROTATION_MATRIX,
+                 use_pose_blendshape=False, fps=60, joint_mask=None, device=torch.device('cpu')):
+        r"""
+        Init a full motion evaluator.
+
+        :param official_model_file: Path to the official SMPL/MANO/SMPLH model to be loaded.
+        :param align_joint: Which joint to align. (e.g. SMPLJoint.ROOT). By default the root.
+        :param rep: The rotation representation used in the input poses.
+        :param use_pose_blendshape: Whether to use pose blendshape or not.
+        :param joint_mask: If not None, local angle error, global angle error, and joint position error
+                           for these joints will be calculated additionally.
+        :param fps: Motion fps, by default 60.
+        :param device: torch.device, cpu or cuda.
+        """
+        super(TransEvaluator, self).__init__(official_model_file, rep, use_pose_blendshape, device=device)
+        self.align_joint = 0 if align_joint is None else align_joint.value
+        self.fps = fps
+        self.metrics_dict = {'Trans err 1s':0, 'Trans err 2s':1, 'Trans err 5s':2, 'Trans err 10s':3,}
+
+    def __call__(self, pose_p, pose_t, shape_p=None, shape_t=None, tran_p=None, tran_t=None, return_step_result=False, ego_yaw=False, pred_rescale=1):
+
+        pose_local_p, shape_p, tran_p = self._preprocess(pose_p, shape_p, tran_p)
+        pose_local_t, shape_t, tran_t = self._preprocess(pose_t, shape_t, tran_t)
+        pose_global_p, joint_p = self.model.forward_kinematics(pose_local_p, shape_p, tran_p, calc_mesh=False)
+        pose_global_t, joint_t = self.model.forward_kinematics(pose_local_t, shape_t, tran_t, calc_mesh=False)
+
+
+
+        # offset_from_p_to_t = (joint_t[:, self.align_joint] - joint_p[:, self.align_joint]).unsqueeze(1)
+        if ego_yaw == False:
+            f = self.fps * 1
+            te1 = ((joint_p[f:, 0] - joint_p[:-f, 0])*pred_rescale - (joint_t[f:, 0] - joint_t[:-f, 0])).norm(dim=-1)
+            f = self.fps * 2
+            te2 = ((joint_p[f:, 0] - joint_p[:-f, 0])*pred_rescale - (joint_t[f:, 0] - joint_t[:-f, 0])).norm(dim=-1)
+            f = self.fps * 5
+            te5 = ((joint_p[f:, 0] - joint_p[:-f, 0])*pred_rescale - (joint_t[f:, 0] - joint_t[:-f, 0])).norm(dim=-1)
+            f = self.fps * 10
+            te10 = ((joint_p[f:, 0] - joint_p[:-f, 0])*pred_rescale - (joint_t[f:, 0] - joint_t[:-f, 0])).norm(dim=-1)
+        else:
+            te = []
+            t_gap = [1, 2, 5, 10]
+            for t in t_gap:
+                f = self.fps * t
+                tran_gt = joint_t[f:, :1] - joint_t[:-f, :1]
+                tran_pred = joint_p[f:, :1] - joint_p[:-f, :1]
+                tran_gt = tran_gt.cuda()
+                tran_pred = tran_pred.cuda()
+                ego_yaw_gt = get_ego_yaw(pose_t, root_idx=0)[:-f].cuda().reshape(-1, 3, 3)
+                ego_yaw_pred = get_ego_yaw(pose_p, root_idx=0)[:-f].cuda().reshape(-1, 3, 3)
+
+                # print(ego_yaw_gt.shape, ego_yaw_pred.shape)
+
+                # tran_gt_ego = tran_gt.matmul(ego_yaw_gt)
+                # tran_pred_ego = tran_pred.matmul(ego_yaw_pred)
+
+                # print(tran_gt.unsqueeze(-1).shape, tran_pred.unsqueeze(-1).shape)
+
+                tran_gt_ego = ego_yaw_gt.transpose(-2, -1).matmul(tran_gt.reshape(-1, 3, 1)).squeeze(-1)
+                tran_pred_ego = ego_yaw_pred.transpose(-2, -1).matmul(tran_pred.reshape(-1, 3, 1)).squeeze(-1)
+                tran_pred_ego*=pred_rescale
+
+                # scale_pred2gt = tran_gt_ego.norm(dim=-1).mean() / tran_pred_ego.norm(dim=-1).mean()
+                # print(scale_pred2gt)
+                # tran_pred_ego *= scale_pred2gt
+
+                te.append((tran_pred_ego - tran_gt_ego).norm(dim=-1).cpu())
+                # print(te[-1].shape)
+            te = tuple(te)
+            te1, te2, te5, te10 = te
+
+        result = torch.tensor([[te1.mean(),   te1.std(dim=0).mean()],
+                             [te2.mean(),   te2.std(dim=0).mean()],
+                             [te5.mean(),  te5.std(dim=0).mean()],
+                             [te10.mean(),  te10.std(dim=0).mean()]])
+        # print(result)
+
+        if return_step_result:
+            result = [te1, te2, te5, te10]
+            result = tuple(result)
+        return result
