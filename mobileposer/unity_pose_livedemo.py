@@ -125,6 +125,23 @@ def process_pose_data(data):
 
     return pose_t, pose_p, use_cali
 
+def process_livedemo_data(data):
+    pose_p = data['pose_p']
+    use_cali = data['use_cali'] if 'use_cali' in data else torch.zeros(pose_p.shape[0], imu_num, dtype=torch.bool)
+    
+    # if use_cali is None
+    if use_cali is None:
+        use_cali = torch.zeros(pose_p.shape[0], imu_num, dtype=torch.bool)
+
+    pose_p = pose_p.view(-1, 24, 3, 3)
+    use_cali = use_cali.view(-1, imu_num)
+
+    # convert to cpu
+    pose_p = pose_p.cpu()
+    use_cali = use_cali.cpu()
+
+    return pose_p, use_cali
+
 def get_name(model_list=["ours", "baseline"], i=0):
     name_list = ['gt'] + model_list
     name_list = [name.replace('_60fps', '') for name in name_list]
@@ -134,36 +151,25 @@ def get_name(model_list=["ours", "baseline"], i=0):
 
 if __name__ == '__main__':
     
-    data_dir = 'data/eval'
-    dataset_name = 'imuposer'
-    model_list = ['mobileposer', 'mobileposer_ws128_woRD_frame_LSTMcalibrated', 'mobileposer_ws128_woRD_calibrated']
+    data_dir = 'data/livedemo/sit'
+    model_list = ['2imu_sit_20250526_135237_lstm.pt', '2imu_sit_20250526_135237_tic.pt']
 
-    # 获取data_dir/model_list[0]/dataset_name/中以.pt结尾的文件个数
-    idx_num = len([name for name in os.listdir(os.path.join(data_dir, model_list[0], 'lw_rp', dataset_name)) if name.endswith('.pt')])
-
-    idx = [i for i in range(4, 9)]
-    print('len:', idx)
-    
-    for i in idx:
+    # # 获取data_dir/model_list[0]/dataset_name/中以.pt结尾的文件个数
+    # idx_num = len([name for name in os.listdir(os.path.join(data_dir, model_list[0], 'lw_rp', dataset_name)) if name.endswith('.pt')])
         
-        pose_list, tran_list, use_cali_list = [], [], []
-        for name in model_list:
-            data_path = os.path.join(data_dir, name, 'lw_rp', dataset_name, str(i)+'.pt')
-            data = torch.load(data_path)
+    pose_list, tran_list, use_cali_list = [], [], []
+    for name in model_list:
+        data_path = os.path.join(data_dir, name)
+        data = torch.load(data_path)
 
-            pose_t, pose_p, use_cali = process_pose_data(data)
-            use_cali_list.append(use_cali)
-
-            if pose_list == []:
-                pose_list.append(pose_t)
-                print("frames:", pose_t.shape[0])
+        pose_p, use_cali = process_livedemo_data(data)
+        use_cali_list.append(use_cali)
             
-            pose_list.append(pose_p)
+        pose_list.append(pose_p)
         
-        name_list = get_name(model_list=model_list, i=i)
-        name_list = ['gt', 'mocap', 'mocap+lstm', 'mocap+tic']
+    name_list = ['mocap+lstm', 'mocap+tic']
 
-        viewer_manager = MotionViewerManager(len(pose_list), overlap=False, names=name_list)
+    viewer_manager = MotionViewerManager(len(pose_list), overlap=False, names=name_list)
 
-        viewer_manager.visualize(pose_list, use_cali_list=use_cali_list)
-        viewer_manager.close()
+    viewer_manager.visualize(pose_list, use_cali_list=None)
+    viewer_manager.close()

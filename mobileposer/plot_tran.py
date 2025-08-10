@@ -9,24 +9,30 @@ import numpy as np
 #     "all": [0, 0.2506, 0.3762, 0.4683, 0.5276, 0.5717, 0.6191, 0.6506]
 # }
 data = {
-    "MobilePoser": [0, 0.37,	0.57,	0.67,	0.75,	0.77,	0.79,	0.80],
-    "Ours": [0, 0.31,	0.47,	0.64,	0.71,	0.67,	0.63,	0.55]
+    "MobilePoser": [0, 0.37,	0.57,	0.67,	0.75],
+    "Ours": [0, 0.31,	0.47,	0.64,	0.71]
 }
 
 # x 轴表示真实行进距离
-x = np.arange(0, 8, 1)  # 0 到 7 米
+x = np.arange(0, 5, 1)  # 0 到 7 米
 
 # 绘制 TotalCapture 数据集的图表
-plt.figure(figsize=(10, 5))
+plt.figure(figsize=(20, 10))
 
 for model, errors in data.items():
-    plt.plot(x, errors, label=model)
+    plt.plot(x, errors, label=model, linewidth=3)
 
 # 设置标题和标签
-plt.title("Real-World Dataset")
-plt.xlabel("Real Travelled Distance (m)")
-plt.ylabel("Mean Translation Error (m)")
-plt.legend()
+plt.title("Real-world Dataset", fontsize=35)
+plt.xlabel("Real Travelled Distance (m)", fontsize=35)
+plt.ylabel("Mean Translation Error (m)", fontsize=35)
+
+# 设置坐标刻度的字体大小
+plt.xticks(fontsize=20)
+plt.yticks(fontsize=20)
+
+# 设置图例大小
+plt.legend(fontsize=30)
 plt.grid(True)
 plt.show()
 

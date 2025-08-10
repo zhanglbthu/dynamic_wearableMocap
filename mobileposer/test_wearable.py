@@ -333,10 +333,10 @@ def test_wearable_pressure(filtered=True, sensor_count=1):
         print(f'\rfps: {clock.get_fps():.2f}', end='')
 
 if __name__ == '__main__':
-    # test_wearable(n=1)
+    test_wearable(n=1)
     # test_wearable_noitom(n_calibration=1)
     # test_wearable_light_proximity()
-    test_wearable_light()
+    # test_wearable_light()
     # test_wearable_place()
     # test_wearable_height()
     # test_wearable_pressure(filtered=False, sensor_count=1)
