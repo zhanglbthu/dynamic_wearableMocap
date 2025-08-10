@@ -39,6 +39,7 @@ class paths:
     raw_imuposer = Path("/root/autodl-tmp/mobileposer/dataset_raw/imuposer_dataset")     # TODO: replace with your path
     eval_dir = Path("/root/autodl-tmp/mobileposer/eval")
     processed_datasets = Path("/root/autodl-tmp/mobileposer/dataset_work")
+    livedemo_dataset_dir = '/root/autodl-tmp/data/livedemo'
 
     # livedemo record directory
     temp_dir = Path("data/livedemo/temp")
@@ -98,7 +99,7 @@ class model_config:
     sym_loss_weight = 1e-3
     
     combo_id = 'lw_rp'
-    name = 'mobileposer_ws128_woRD'
+    name = 'mobileposer_ws128_woRD_frame'
     tic_ws = 128
 
 class amass:    

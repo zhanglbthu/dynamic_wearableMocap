@@ -181,7 +181,40 @@ class TicOperator():
         use_calis = torch.stack(use_calis, dim=0)
         
         return rot, acc, torch.stack(pred_drift, dim=0), torch.stack(pred_offset, dim=0), use_calis
-    
+
+    def run_per_frame(self, rot, acc):
+        self.reset()
+        acc = acc.reshape(-1, self.imu_num * 3)  # [1, 2 * 3]
+        rot = rot.reshape(-1, self.imu_num * 3 * 3)
+        origin_acc_cat_rot = torch.cat([acc, rot], dim=-1).to(self.device) 
+
+        acc_cat_rot = origin_acc_cat_rot.clone()
+        acc_cat_rot[:, :self.imu_num * 3] /= 30
+        
+        acc_cat_rot = acc_cat_rot.reshape(1, -1, self.imu_num * 12)
+        delta_R_DG, delta_R_BS = self.model(acc_cat_rot)
+
+        
+        delta_R_DG = r6d_to_rotation_matrix(delta_R_DG.reshape(-1, 6)).view(-1, self.imu_num, 3, 3)
+        delta_R_BS = r6d_to_rotation_matrix(delta_R_BS.reshape(-1, 6)).view(-1, self.imu_num, 3, 3)
+        
+        recali_data = []
+        for i in range(rot.shape[0]):   
+            delta_R_DG[i] = ego_drift_regularization(delta_R_DG[i])
+
+            # self.R_DG = self.R_DG.matmul(delta_R_DG[i])
+            # self.R_BS = delta_R_BS[i].matmul(self.R_BS)
+            self.R_DG = delta_R_DG[i]
+            self.R_BS = delta_R_BS[i]
+            
+            recali_data.append(self.calibrate_step(origin_acc_cat_rot[i]))
+            
+        recali_data = torch.cat(recali_data, dim=0)
+        acc = recali_data[:, :3 * self.imu_num].reshape(-1, self.imu_num, 3)
+        rot = recali_data[:, 3 * self.imu_num:].reshape(-1, self.imu_num, 3, 3)
+        
+        return rot, acc, None, None, None
+
     def run_frame(self, rot, acc, trigger_t=1, idx=-1):
         trigger_gap = int(self.data_frame_rate * trigger_t)
         acc = acc.reshape(-1, self.imu_num * 3) # [1, 2 * 3]

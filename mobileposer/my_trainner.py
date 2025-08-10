@@ -65,6 +65,11 @@ class TicTrainner(BaseTrainer):
 
                 rot, acc, drift, offset = rot.flatten(2), acc.flatten(2), drift.flatten(1), offset.flatten(1)
                 # rot: [128, 256, 18]; acc: [128, 256, 6]; drift: [128, 12]; offset: [128, 12]
+                
+                # drift, offset: repeat to [128, 256, 12]
+                seq_len = rot.shape[1]
+                drift = drift.unsqueeze(1).repeat(1, seq_len, 1)  # [128, 256, 12]
+                offset = offset.unsqueeze(1).repeat(1, seq_len, 1)  # [128, 256, 12]
                 acc /= 30
 
                 x = torch.cat([acc, rot], dim=-1)
@@ -72,6 +77,7 @@ class TicTrainner(BaseTrainer):
                 self.optimizer[0].zero_grad()
 
                 drift_hat, offset_hat = self.model(x)
+
                 loss = self.MSE(drift_hat, drift) + self.MSE(offset_hat, offset)
 
                 loss.backward()
