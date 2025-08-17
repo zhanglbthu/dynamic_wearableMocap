@@ -71,16 +71,17 @@ def find_seg_index(index_info, data_index, n_seg=0):
     return seq_index, inner_index
 
 class IMUData(BaseDataset):
-    def __init__(self, rot: torch.Tensor, acc, seg_info, head_acc=None, seq_len=256):
+    def __init__(self, rot: torch.Tensor, acc, rot_gt, acc_gt, seg_info, head_acc=None, seq_len=256):
         self.rot = rot
         self.acc = acc
+        self.rot_gt = rot_gt
+        self.acc_gt = acc_gt
         self.head_acc = head_acc
         self.data_len = len(rot) - len(seg_info) * (seq_len - 1)
         self.amass_data_len = 1834274
         # self.amass_data_len = 2330402
         self.seg_info = seg_info
         self.seq_len = seq_len
-        self.head_acc = head_acc
         self.index_info = seg_info_2_index_info(seg_info)
 
         data_seq_info = (np.array(seg_info) - (seq_len - 1)).tolist()
@@ -108,12 +109,13 @@ class IMUData(BaseDataset):
         i = self.indexer[i]
         index_begin = self.mapping[i]
         _rot, _acc = self.rot[index_begin:index_begin + self.seq_len], self.acc[index_begin:index_begin + self.seq_len]
+        _rot_gt, _acc_gt = self.rot_gt[index_begin:index_begin + self.seq_len], self.acc_gt[index_begin:index_begin + self.seq_len] 
         if self.head_acc is not None and i < self.amass_data_len:
             head_acc_idx = random.randint(0, 13)
             head_acc = self.head_acc[index_begin:index_begin + self.seq_len, head_acc_idx]
             _acc[:, 4] = head_acc
 
-        return _rot, _acc
+        return _rot, _acc, _rot_gt, _acc_gt
 
     @staticmethod
     def merge(data_dict_1, data_dict_2):
@@ -142,23 +144,28 @@ class IMUData(BaseDataset):
             Dict of datas.
         """
 
-        rot, seg_info = amass_read_seg(os.path.join(folder_path, 'vrot.pt'), min_len=256,step=step, read_rate=read_rate, combo=[0, 3])
-        acc, _ = amass_read_seg(os.path.join(folder_path, 'vacc.pt'), min_len=256, step=step, read_rate=read_rate, combo=[0, 3])
-        head_acc, _ = amass_read_seg(os.path.join(folder_path, 'vacc_head14.pt'), min_len=256, step=step, read_rate=read_rate)
+        rot, seg_info = amass_read_seg(os.path.join(folder_path, 'rot.pt'), min_len=256, step=step, read_rate=read_rate)
+        acc, _ = amass_read_seg(os.path.join(folder_path, 'acc.pt'), min_len=256, step=step, read_rate=read_rate)
+        
+        rot_gt, _ = amass_read_seg(os.path.join(folder_path, 'rot_gt.pt'), min_len=256, step=step, read_rate=read_rate)
+        acc_gt, _ = amass_read_seg(os.path.join(folder_path, 'acc_gt.pt'), min_len=256, step=step, read_rate=read_rate)
 
         rot = rot.reshape(-1, config.imu_num, 3, 3)
+        rot_gt = rot_gt.reshape(-1, config.imu_num, 3, 3)
+        
         acc = torch.clamp(acc, min=-90, max=90).reshape(-1, config.imu_num, 3)
-        head_acc = torch.clamp(head_acc, min=-90, max=90).unsqueeze(-1)
         acc = acc.unsqueeze(-1)
+        acc_gt = torch.clamp(acc_gt, min=-90, max=90).reshape(-1, config.imu_num, 3)
+        acc_gt = acc_gt.unsqueeze(-1)
 
         """
         rot: [2822654, imu_num, 3, 3]
         acc: [2822654, imu_num, 3, 1]
-        head_acc: [2822654, 14, 3, 1]
         """
-        return {'imu_rot': rot,
-                'imu_acc': acc,
-                'head_acc': head_acc,
+        return {'rot': rot,
+                'acc': acc,
+                'rot_gt': rot_gt,
+                'acc_gt': acc_gt,
                 'seg_info': seg_info}
 
 class DipIMUData(BaseDataset):

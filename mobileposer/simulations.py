@@ -171,4 +171,16 @@ def imu_offset_simulation(imu_rot, imu_acc, imu_num=2, acc_noise=0.025):
     drift = rotation_matrix_to_r6d(drift).reshape(batch_size, imu_num, 6)
     
     return imu_rot, imu_acc, drift, offset
+
+def imu_offset_simulation_realdata(rot, acc, rot_gt, acc_gt, imu_num=2, acc_noise=0.025):
+    batch_size, seq_len = rot.shape[0], rot.shape[1]
     
+    acc = add_gaussian_noise(acc, sigma=acc_noise)
+    
+    # calculate offset
+    # delta_R = R^T * R_gt
+    # rot: [batch_size, seq_len, imu_num, 3, 3], rot_gt: [batch_size, seq_len, imu_num, 3, 3]
+    offset_mat = torch.matmul(rot.transpose(-1, -2), rot_gt)
+    offset = rotation_matrix_to_r6d(offset_mat.reshape(-1, 3, 3)).reshape(batch_size, seq_len, imu_num, 6)
+    
+    return rot, acc, offset
