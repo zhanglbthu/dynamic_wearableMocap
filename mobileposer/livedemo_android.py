@@ -190,6 +190,7 @@ if __name__ == '__main__':
     # set mobileposer network
     ckpt_path = "data/checkpoints/mobileposer/lw_rp/base_model.pth"
     net = load_mobileposer_model(ckpt_path, combo_id=model_config.combo_id)
+    net_gt = load_mobileposer_model(ckpt_path, combo_id=model_config.combo_id)
     print('Mobileposer model loaded.')
     
     # set calibrator model
@@ -204,27 +205,28 @@ if __name__ == '__main__':
     # lstmic = lstmic.to(device).eval()
     # print('LSTMIC model loaded.')
     
-    # set operator model
-    ts = TicOperator(TIC_network=tic, imu_num=imu_num, data_frame_rate=30)
-    ts.reset()
-    print('TicOperator model loaded.')
+    # # set operator model
+    # ts = TicOperator(TIC_network=tic, imu_num=imu_num, data_frame_rate=30)
+    # ts.reset()
+    # print('TicOperator model loaded.')
 
     qIC_list, qOS_list = align_sensor(sensor_set=sensor_set, n_calibration=2)
     RMI, RSB = tpose_calibration(n_calibration)
 
-    # # add ground truth readings
-    # imu_set = IMUSet()
-    # RMI_gt, RSB_gt = tpose_calibration_noitom(imu_set=imu_set)
+    # add ground truth readings
+    imu_set = IMUSet()
+    RMI_gt, RSB_gt = tpose_calibration_noitom(imu_set=imu_set)
 
     accs, oris = [], []
     accs_gt, oris_gt = [], []
     poses, trans = [], []
     
     net.eval()
+    net_gt.eval()
     
     idx = 0
 
-    with torch.no_grad(), MotionViewer(1, overlap=False) as viewer:
+    with torch.no_grad(), MotionViewer(2, overlap=False, names=['gt', 'real']) as viewer:
         while True:
             clock.tick(30)
             viewer.clear_line(render=False)
@@ -236,15 +238,13 @@ if __name__ == '__main__':
 
             sensor_data = sensor_set.get()
             combo = [0, 3]
-            # # # gt readings
-            # tframe, RIS_gt, aI_gt = imu_set.get()
-            # RMB_gt = RMI_gt.matmul(RIS_gt).matmul(RSB_gt)[combo].to(device)
-            # aM_gt = aI_gt.mm(RMI_gt.t())[combo].to(device)
+            # gt readings
+            tframe, RIS_gt, aI_gt = imu_set.get()
+            RMB_gt = RMI_gt.matmul(RIS_gt).matmul(RSB_gt)[combo].to(device)
+            aM_gt = aI_gt.mm(RMI_gt.t())[combo].to(device)
 
-            # oris_gt.append(RMB_gt)
-            # accs_gt.append(aM_gt)
-            
-            pressures = []
+            oris_gt.append(RMB_gt)
+            accs_gt.append(aM_gt)
             
             for i in range(n_calibration):
                 qCO_sensor = torch.tensor(sensor_data[i].orientation).float()
@@ -266,23 +266,30 @@ if __name__ == '__main__':
             oris.append(RMB)
             accs.append(aM)
 
-            # calibrate acc and ori
-            RMB, aM = ts.run_livedemo_tic(RMB, aM, trigger_t=1, idx=idx)
+            # # calibrate acc and ori
+            # RMB, aM = ts.run_livedemo_tic(RMB, aM, trigger_t=1, idx=idx)
 
             RMB = RMB.view(imu_num, 3, 3)
             aM = aM.view(imu_num, 3)
+            RMB_gt = RMB_gt.view(imu_num, 3, 3)
+            aM_gt = aM_gt.view(imu_num, 3)
             
             aM = aM / amass.acc_scale
+            aM_gt = aM_gt / amass.acc_scale
+            
             input = torch.cat([aM.flatten(), RMB.flatten()], dim=0).to("cuda")
-            
-            pose = net.forward_frame(input)
-            
+            input_gt = torch.cat([aM_gt.flatten(), RMB_gt.flatten()], dim=0).to("cuda")
+
+            pose = net_gt.forward_frame(input)
+            pose_gt = net.forward_frame(input_gt)
+
             poses.append(pose)
             
             pose = pose.cpu().numpy()      
+            pose_gt = pose_gt.cpu().numpy()
             
             zero_tran = np.array([0, 0, 0])  
-            viewer.update_all([pose], [zero_tran], render=False)
+            viewer.update_all([pose_gt, pose], [zero_tran, zero_tran], render=False)
             viewer.render()
             
             idx += 1
@@ -306,11 +313,11 @@ if __name__ == '__main__':
     
     data_filename = f"{args.name}_{timestamp}.pt"
     
-    torch.save({'acc': accs, 
-                'ori': oris,  
-                'pose': poses, 
-                'acc_gt': accs_gt,
-                'ori_gt': oris_gt
+    torch.save({'acc': accs,       # [N,  2,  3]
+                'ori': oris,       # [N,  2,  3,  3]
+                'pose': poses,     # [N,  24, 3,  3]
+                'acc_gt': accs_gt, # [N,  2, 3]
+                'ori_gt': oris_gt  # [N,  2,  3,  3]
                 }, os.path.join(paths.live_record_dir, data_filename))
     
     print('\rFinish.')
