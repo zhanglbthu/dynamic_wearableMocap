@@ -215,7 +215,7 @@ class TicOperator():
         
         return rot, acc, None, None, None
 
-    def run_frame(self, rot, acc, trigger_t=1, idx=-1):
+    def run_livedemo_tic(self, rot, acc, trigger_t=1, idx=-1):
         trigger_gap = int(self.data_frame_rate * trigger_t)
         acc = acc.reshape(-1, self.imu_num * 3) # [1, 2 * 3]
         rot = rot.reshape(-1, self.imu_num * 3 * 3) # [1, 2 * 3 * 3]
@@ -234,4 +234,7 @@ class TicOperator():
         acc = recali_data[:, :3*self.imu_num].reshape(-1, self.imu_num, 3)
         rot = recali_data[:, 3 * self.imu_num:].reshape(-1, self.imu_num, 3, 3)
 
+        return rot, acc
+
+    def run_livedemo_lstmic(self, rot, acc):
         return rot, acc

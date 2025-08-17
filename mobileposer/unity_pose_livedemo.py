@@ -8,6 +8,7 @@ import os
 import open3d as o3d
 import numpy as np
 import matplotlib
+from articulate.utils.bullet.view_rotation_np import RotationViewer
 
 body_model = art.ParametricModel(paths.smpl_file)
 vi_mask = torch.tensor([1961, 5424, 876, 4362, 411, 3021])
@@ -126,7 +127,7 @@ def process_pose_data(data):
     return pose_t, pose_p, use_cali
 
 def process_livedemo_data(data):
-    pose_p = data['pose_p']
+    pose_p = data['pose_p'] if 'pose_p' in data else data['pose']
     use_cali = data['use_cali'] if 'use_cali' in data else torch.zeros(pose_p.shape[0], imu_num, dtype=torch.bool)
     
     # if use_cali is None
@@ -151,8 +152,8 @@ def get_name(model_list=["ours", "baseline"], i=0):
 
 if __name__ == '__main__':
     
-    data_dir = 'data/livedemo/sit'
-    model_list = ['2imu_sit_20250526_135237_lstm.pt', '2imu_sit_20250526_135237_tic.pt']
+    data_dir = 'data/livedemo/sit_20250811'
+    model_list = ['sit_20250811_180140_gt.pt', 'sit_20250811_180140.pt', 'sit_20250811_180140_tic.pt']
 
     # # 获取data_dir/model_list[0]/dataset_name/中以.pt结尾的文件个数
     # idx_num = len([name for name in os.listdir(os.path.join(data_dir, model_list[0], 'lw_rp', dataset_name)) if name.endswith('.pt')])
@@ -167,8 +168,14 @@ if __name__ == '__main__':
             
         pose_list.append(pose_p)
         
-    name_list = ['mocap+lstm', 'mocap+tic']
+    name_list = ['gt_rot', 'real_rot', 'tic_rot']
 
+    # rviewer = RotationViewer(3, order='wxyz'); rviewer.connect()
+    # data_path = os.path.join(data_dir, model_list[1])
+    # data = torch.load(data_path)
+    # rot = data['rot']
+    # rot_gt = data['rot_gt']
+    
     viewer_manager = MotionViewerManager(len(pose_list), overlap=False, names=name_list)
 
     viewer_manager.visualize(pose_list, use_cali_list=None)
