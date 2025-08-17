@@ -126,6 +126,49 @@ def align_sensor(sensor_set, n_calibration):
         qOS_list.append(quaternion_inverse(qSO))
     return qIC_list, qOS_list
 
+def tpose_calibration_noitom(imu_set):
+     print('Calibrating T-pose...')
+     c = input('Used cached RMI? [y]/n    (If you choose no, put imu 1 straight (x = Right, y = Forward, z = Down, Left-handed).')
+     if c == 'n' or c == 'N':
+         imu_set.clear()
+         RSI_gt = imu_set.get()[1][0].view(3, 3).t()
+         RMI_gt = torch.tensor([[1, 0, 0], [0, 0, 1], [0, -1, 0.]]).mm(RSI_gt)
+         torch.save(RMI_gt, os.path.join(paths.temp_dir, 'RMI.pt'))
+     else:
+         RMI_gt = torch.load(os.path.join(paths.temp_dir, 'RMI.pt'))
+     print(RMI_gt)
+ 
+     input('Stand straight in T-pose and press enter. The calibration will begin in 3 seconds')
+     time.sleep(3)
+     imu_set.clear()
+     RIS_gt = imu_set.get()[1]
+
+     RSB_gt = RMI_gt.matmul(RIS_gt).transpose(1, 2).matmul(torch.eye(3))
+     return RMI_gt, RSB_gt
+
+def align_sensor_noitom(imu_set, sensor_set, n_calibration):
+     r"""Align noitom and sensor imu data"""
+     print('Rotate the sensor & imu together.')
+     qIC_list, qOS_list = [], []
+ 
+     for i in range(n_calibration):
+         qIS, qCO = [], []
+         while len(qIS) < 1:
+             imu_set.app.poll_next_event()
+             sensor_data = sensor_set.get()
+             if not 0 in sensor_data:
+                 continue
+ 
+             qIS.append(torch.tensor(imu_set.sensors[0].get_posture()).float()) # noitom
+             qCO.append(torch.tensor(sensor_data[i].orientation).float()) # wearable sensor
+             print('\rCalibrating... (%d/%d)' % (i, n_calibration), end='')
+ 
+         qCI, qSO = calibrate_q(torch.stack(qIS), torch.stack(qCO))
+         print('\tfinished\nqCI:', qCI, '\tqSO:', qSO)
+         qIC_list.append(quaternion_inverse(qCI))
+         qOS_list.append(quaternion_inverse(qSO))
+     return qIC_list, qOS_list
+
 if __name__ == '__main__':
     parser = ArgumentParser()
     os.makedirs(paths.temp_dir, exist_ok=True)
@@ -151,9 +194,15 @@ if __name__ == '__main__':
     
     # set calibrator model
     tic = TIC(stack=3, n_input=imu_num * (3 + 3 * 3), n_output=imu_num * 6)
-    tic.restore("data/checkpoints/calibrator/TIC_MP/TIC_20.pth")
+    tic.restore("data/checkpoints/calibrator/TIC/TIC_20.pth")
     tic = tic.to(device).eval()
     print('TIC model loaded.')
+    
+    # # set LSTM calibrator model
+    # lstmic = LSTMIC(n_input=imu_num * (3 + 3 * 3), n_output=imu_num * 6)
+    # lstmic.restore("data/checkpoints/calibrator/LSTMIC_frame/LSTMIC_frame_20.pth")
+    # lstmic = lstmic.to(device).eval()
+    # print('LSTMIC model loaded.')
     
     # set operator model
     ts = TicOperator(TIC_network=tic, imu_num=imu_num, data_frame_rate=30)
@@ -163,10 +212,13 @@ if __name__ == '__main__':
     qIC_list, qOS_list = align_sensor(sensor_set=sensor_set, n_calibration=2)
     RMI, RSB = tpose_calibration(n_calibration)
 
-    
+    # # add ground truth readings
+    # imu_set = IMUSet()
+    # RMI_gt, RSB_gt = tpose_calibration_noitom(imu_set=imu_set)
+
     accs, oris = [], []
+    accs_gt, oris_gt = [], []
     poses, trans = [], []
-    data = {'RMI': RMI, 'RSB': RSB, 'aM': [], 'RMB': []}
     
     net.eval()
     
@@ -183,6 +235,14 @@ if __name__ == '__main__':
             aI = torch.zeros(6, 3)
 
             sensor_data = sensor_set.get()
+            combo = [0, 3]
+            # # # gt readings
+            # tframe, RIS_gt, aI_gt = imu_set.get()
+            # RMB_gt = RMI_gt.matmul(RIS_gt).matmul(RSB_gt)[combo].to(device)
+            # aM_gt = aI_gt.mm(RMI_gt.t())[combo].to(device)
+
+            # oris_gt.append(RMB_gt)
+            # accs_gt.append(aM_gt)
             
             pressures = []
             
@@ -200,7 +260,6 @@ if __name__ == '__main__':
 
                 aI[index, :] = aIS_sensor
             
-            combo = [0, 3]
             RMB = RMI.matmul(RIS).matmul(RSB)[combo].to(device)
             aM = aI.mm(RMI.t())[combo].to(device)
 
@@ -208,17 +267,10 @@ if __name__ == '__main__':
             accs.append(aM)
 
             # calibrate acc and ori
-            RMB, aM = ts.run_frame(RMB, aM, trigger_t=1, idx=idx)
+            RMB, aM = ts.run_livedemo_tic(RMB, aM, trigger_t=1, idx=idx)
 
             RMB = RMB.view(imu_num, 3, 3)
             aM = aM.view(imu_num, 3)
-
-            # oris.append(RMB)
-            # accs.append(aM)
-            
-            # combo = [0, 3]
-            # aM = aM[combo] / amass.acc_scale 
-            # RMB = RMB[combo]
             
             aM = aM / amass.acc_scale
             input = torch.cat([aM.flatten(), RMB.flatten()], dim=0).to("cuda")
@@ -243,8 +295,10 @@ if __name__ == '__main__':
     accs = torch.stack(accs)
     oris = torch.stack(oris)
     poses = torch.stack(poses)
+    accs_gt = torch.stack(accs_gt)
+    oris_gt = torch.stack(oris_gt)
     
-    print(f"accs: {accs.shape}, oris: {oris.shape}, poses: {poses.shape}")
+    print(f"accs: {accs.shape}, oris: {oris.shape}, poses: {poses.shape}, accs_gt: {accs_gt.shape}, oris_gt: {oris_gt.shape}")
     
     print('Frames: %d' % accs.shape[0])
     
@@ -255,6 +309,8 @@ if __name__ == '__main__':
     torch.save({'acc': accs, 
                 'ori': oris,  
                 'pose': poses, 
+                'acc_gt': accs_gt,
+                'ori_gt': oris_gt
                 }, os.path.join(paths.live_record_dir, data_filename))
     
     print('\rFinish.')
