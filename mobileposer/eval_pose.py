@@ -163,7 +163,7 @@ if __name__ == '__main__':
     
     # # load LSTM calibrator model
     lstm_ic = LSTMIC(n_input=imu_num * (3 + 3 * 3), n_output=imu_num * 6)
-    lstm_ic.restore("data/checkpoints/calibrator/LSTMIC_frame/LSTMIC_frame_2.pth")
+    lstm_ic.restore("data/checkpoints/calibrator/LSTMIC_frame/LSTMIC_frame_20.pth")
     
     net = lstm_ic.to(device).eval()
     

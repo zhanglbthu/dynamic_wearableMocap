@@ -10,15 +10,15 @@ import os
 
 imu_num = config.imu_num
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-model = TIC(stack=3, n_input=imu_num * (3 + 3 * 3), n_output=imu_num * 6)
-model.restore('.data/checkpoint/calibrator/TIC_MP/TIC_20.pth')
-# model = LSTMIC(n_input=imu_num * (3 + 3 * 3), n_output=imu_num * 6)
-# model.restore('data/checkpoints/calibrator/LSTMIC_frame/LSTMIC_frame_2.pth')
+# model = TIC(stack=3, n_input=imu_num * (3 + 3 * 3), n_output=imu_num * 6)
+# model.restore('data/checkpoints/calibrator/TIC_MP/TIC_20.pth')
+model = LSTMIC(n_input=imu_num * (3 + 3 * 3), n_output=imu_num * 6)
+model.restore('data/checkpoints/calibrator/LSTMIC_frame/LSTMIC_frame_20.pth')
 model = model.to(device).eval()
 
 tag = 'TIC'
-folders = ['2imu_sit_20250526_135237']
-combo = [0, 3]
+folders = ['sit_20250811_180140']
+combo = [0, 1]
 # folders = ['s1']
 
 # Inference
@@ -39,7 +39,7 @@ if __name__ == '__main__':
         imu_rot = data['ori'][:, combo].to(device)
 
         ts = TicOperator(TIC_network=model, imu_num=imu_num, data_frame_rate=30)
-        rot, acc, pred_drift, pred_offset, use_cali = ts.run(imu_rot, imu_acc)
+        rot, acc, pred_drift, pred_offset, use_cali = ts.run_per_frame(imu_rot, imu_acc)
 
         acc = acc / amass.acc_scale
         
@@ -52,4 +52,4 @@ if __name__ == '__main__':
     torch.save({
         'pose_p': pose_p,
         'use_cali': use_cali if args.use_cali else None,
-    }, os.path.join(data_root, f + '_tic.pt'))
+    }, os.path.join(data_root, f + '_lstmic.pt'))
