@@ -217,8 +217,49 @@ def process_dipimu():
     torch.save({'acc': accs, 'ori': oris, 'pose': poses, 'tran': trans}, os.path.join(paths.dipimu_dir, 'test.pt'))
     print('Preprocessed DIP-IMU dataset is saved at', paths.dipimu_dir)
 
+def process_realdata():
+    raw_real_data_dir = paths.real_dataset_dir
+    processed_real_data_dir = paths.real_dataset_processed_dir
+    data_files = glob.glob(os.path.join(raw_real_data_dir, '*.pt'))
+    assert len(data_files) > 0, 'No real data found in the specified directory.'
+    
+    data_acc, data_rot, data_acc_gt, data_rot_gt, length = [], [], [], [], []
+    for data_file in data_files:
+        print('\rProcessing', data_file.split('/')[-1])
+        data = torch.load(data_file)
+
+        data_acc.extend(data['acc'].cpu().numpy())
+        data_rot.extend(data['ori'].cpu().numpy())
+        data_acc_gt.extend(data['acc_gt'].cpu().numpy())
+        data_rot_gt.extend(data['ori_gt'].cpu().numpy())
+        length.append(data['acc'].shape[0])
+    
+    length = torch.tensor(length, dtype=torch.int)
+    acc = torch.tensor(np.asarray(data_acc, np.float32))  
+    rot = torch.tensor(np.asarray(data_rot, np.float32))
+    acc_gt = torch.tensor(np.asarray(data_acc_gt, np.float32))
+    rot_gt = torch.tensor(np.asarray(data_rot_gt, np.float32))
+    print(f'acc shape: {acc.shape}, rot shape: {rot.shape}, acc_gt shape: {acc_gt.shape}, rot_gt shape: {rot_gt.shape}') 
+    
+    out_acc, out_rot, out_acc_gt, out_rot_gt = [], [], [], []
+    b= 0
+    for i, l in tqdm(list(enumerate(length))):
+        if l <= 12: b += l; print('\tdiscard one sequence with length', l); continue
+        out_acc.append(acc[b:b + l].clone())
+        out_rot.append(rot[b:b + l].clone())
+        out_acc_gt.append(acc_gt[b:b + l].clone())
+        out_rot_gt.append(rot_gt[b:b + l].clone())
+        b += l
+    print('Saving')
+    os.makedirs(processed_real_data_dir, exist_ok=True)
+    torch.save(out_acc, os.path.join(processed_real_data_dir, 'acc.pt'))
+    torch.save(out_rot, os.path.join(processed_real_data_dir, 'rot.pt'))
+    torch.save(out_acc_gt, os.path.join(processed_real_data_dir, 'acc_gt.pt'))
+    torch.save(out_rot_gt, os.path.join(processed_real_data_dir, 'rot_gt.pt'))
+    print('Processed real dataset is saved at', processed_real_data_dir)
 
 if __name__ == '__main__':
     # process_amass(smooth_n=3)
-    amass_head_acc_syn(smooth_n=3)
+    # amass_head_acc_syn(smooth_n=3)
     # process_dipimu()
+    process_realdata()
