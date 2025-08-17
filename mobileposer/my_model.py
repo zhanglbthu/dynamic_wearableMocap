@@ -54,20 +54,13 @@ class LSTMIC(BaseModel):
     # TODO: Implement LSTM-based Inertial Calibration model
     def __init__(self, n_input, n_output, hidden_size=512, num_layers=2):
         super().__init__()
-        self.net_global = RNN(n_input=n_input, 
+        self.net = RNN(n_input=n_input, 
                               n_output=n_output,
                               n_hidden=hidden_size,
                               n_rnn_layer=num_layers,
                               bidirectional=False)
 
-        self.net_local = RNN(n_input=n_input,
-                             n_output=n_output,
-                             n_hidden=hidden_size,
-                             n_rnn_layer=num_layers,
-                             bidirectional=False)
-
     def forward(self, x):
-        global_shift, _, _ = self.net_global(x, mean_output=False)
-        local_shift, _, _ = self.net_local(x, mean_output=False)
+        offset, _, _ = self.net(x, mean_output=False)
 
-        return global_shift, local_shift
+        return offset

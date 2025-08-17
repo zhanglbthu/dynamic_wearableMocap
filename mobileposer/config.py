@@ -40,6 +40,8 @@ class paths:
     eval_dir = Path("/root/autodl-tmp/mobileposer/eval")
     processed_datasets = Path("/root/autodl-tmp/mobileposer/dataset_work")
     livedemo_dataset_dir = '/root/autodl-tmp/data/livedemo'
+    real_dataset_dir = '/root/autodl-tmp/data/Real_Dataset/RealData_Raw'
+    real_dataset_processed_dir = '/root/autodl-tmp/data/Real_Dataset/RealData_Processed'
 
     # livedemo record directory
     temp_dir = Path("data/livedemo/temp")

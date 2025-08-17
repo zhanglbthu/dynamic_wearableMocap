@@ -83,8 +83,7 @@ class TicOperator():
         acc, rot = acc_cat_rot[0:self.imu_num * 3].view(-1, self.imu_num, 3, 1), acc_cat_rot[self.imu_num * 3:].view(-1,
                                                                                                         self.imu_num, 3,
                                                                                                         3)
-        rot = self.R_DG.transpose(-2, -1).matmul(rot).matmul(self.R_BS.transpose(-2, -1))
-        acc = self.R_DG.transpose(-2, -1).matmul(acc - self.GA) + self.GA
+        rot = rot.matmul(self.R_BS)
 
         return torch.cat([acc.flatten(1), rot.flatten(1)], dim=-1)
 
@@ -192,19 +191,12 @@ class TicOperator():
         acc_cat_rot[:, :self.imu_num * 3] /= 30
         
         acc_cat_rot = acc_cat_rot.reshape(1, -1, self.imu_num * 12)
-        delta_R_DG, delta_R_BS = self.model(acc_cat_rot)
+        delta_R_BS = self.model(acc_cat_rot)
 
-        
-        delta_R_DG = r6d_to_rotation_matrix(delta_R_DG.reshape(-1, 6)).view(-1, self.imu_num, 3, 3)
         delta_R_BS = r6d_to_rotation_matrix(delta_R_BS.reshape(-1, 6)).view(-1, self.imu_num, 3, 3)
         
         recali_data = []
         for i in range(rot.shape[0]):   
-            delta_R_DG[i] = ego_drift_regularization(delta_R_DG[i])
-
-            # self.R_DG = self.R_DG.matmul(delta_R_DG[i])
-            # self.R_BS = delta_R_BS[i].matmul(self.R_BS)
-            self.R_DG = delta_R_DG[i]
             self.R_BS = delta_R_BS[i]
             
             recali_data.append(self.calibrate_step(origin_acc_cat_rot[i]))
@@ -213,7 +205,7 @@ class TicOperator():
         acc = recali_data[:, :3 * self.imu_num].reshape(-1, self.imu_num, 3)
         rot = recali_data[:, 3 * self.imu_num:].reshape(-1, self.imu_num, 3, 3)
         
-        return rot, acc, None, None, None
+        return rot, acc, None, None
 
     def run_livedemo_tic(self, rot, acc, trigger_t=1, idx=-1):
         trigger_gap = int(self.data_frame_rate * trigger_t)
