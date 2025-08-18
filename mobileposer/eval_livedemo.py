@@ -67,5 +67,6 @@ if __name__ == '__main__':
 
             torch.save({
                 'pose_p': pose_p,
+                'rot_p': rot,
                 'use_cali': use_cali if args.use_cali else None,
             }, os.path.join(data_root, f'{tag}_{type}_pred.pt'))
