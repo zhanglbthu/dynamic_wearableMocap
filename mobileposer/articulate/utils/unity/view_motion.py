@@ -16,8 +16,7 @@ class MotionViewer:
     View human motions in real-time / offline using Unity3D.
     """
     colors = matplotlib.colormaps['tab10'].colors
-    # colors去掉第4个元素
-    colors = np.delete(colors, 3, axis=0)
+    
     ip = '127.0.0.1'
     port = 8000
 
