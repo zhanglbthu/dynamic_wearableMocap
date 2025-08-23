@@ -2,6 +2,7 @@ import torch
 import math
 import os
 import matplotlib.pyplot as plt
+import articulate as art
 
 ji_mask = torch.tensor([18, 19, 1, 2, 15, 0])
 
@@ -30,28 +31,29 @@ if __name__ == '__main__':
 
     all_errs = []
 
-    for ori, pose in zip(oris, poses):
-        ori_real, ori_gt = ori[:, 3], pose[:, ji_mask[3]]  # 取出关节对应的旋转矩阵
-        err = rotation_matrix_to_angle(ori_real, ori_gt)  # [N, imu_num]
-        err_deg = err * 180 / math.pi
-        all_errs.append(err_deg.mean(dim=0))  
+    save_dir = "data/rotation_error"
+    os.makedirs(save_dir, exist_ok=True)
 
-    all_errs = torch.stack(all_errs)  # [N, 1]
+    for idx, (ori, pose) in enumerate(zip(oris, poses)):
+        ori_real, ori_gt = ori[:, 3], pose[:, ji_mask[3]]
 
-    # 绘制柱状图
-    plt.figure(figsize=(16, 10))
-    x = range(all_errs.shape[0])
-    plt.bar(x, all_errs.numpy())
-    plt.xticks(x, [f"{i}" for i in range(all_errs.shape[0])])
-    plt.ylabel("Mean Angle Error (degrees)")
-    plt.title("Average Rotation Error per IMU")
-    plt.grid(axis="y", linestyle="--", alpha=0.7)
-    plt.show()
+        rR = torch.matmul(ori_real.transpose(-1, -2), ori_gt)
+        rR_axis = art.math.rotation_matrix_to_axis_angle(rR).view(-1, 3)
+        rR_euler = art.math.rotation_matrix_to_euler_angle(rR, seq='YZX').view(-1, 3)
+        rR_euler = rR_euler * 180 / math.pi
+        
 
-    # ---------- 可视化 3: 箱型图 ----------
-    plt.figure(figsize=(8, 10))
-    plt.boxplot(all_errs.numpy(), vert=True, labels=["Error"])
-    plt.ylabel("Angle Error (degrees)")
-    plt.title("Error Distribution (Boxplot)")
-    plt.grid(axis="y", linestyle="--", alpha=0.6)
-    plt.show()
+        plt.figure(figsize=(20, 5))
+        plt.plot(rR_euler[:, 0].cpu(), label="Y")
+        plt.plot(rR_euler[:, 1].cpu(), label="Z")
+        plt.plot(rR_euler[:, 2].cpu(), label="X")
+        plt.xlabel("Frame index")
+        plt.ylabel("Rotation error (°)")
+        plt.title(f"Rotation error over time (Sequence {idx})")  # 在标题里标序号
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+
+        save_path = os.path.join(save_dir, f"rotation_error_{idx:03d}.png")
+        plt.savefig(save_path, dpi=300)  # 保存为 .png
+        plt.close()  # 关闭图，避免内存占用
