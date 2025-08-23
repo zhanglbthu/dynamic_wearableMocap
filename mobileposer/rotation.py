@@ -45,7 +45,7 @@ if __name__ == '__main__':
     err_rot = rotation_matrix_to_angle(rot[:, imu_idx], rot_gt[:, imu_idx])        # [N]
     err_baseline = rotation_matrix_to_angle(rot_baseline[:, imu_idx], rot_gt[:, imu_idx])
     err_ours = rotation_matrix_to_angle(rot_ours[:, imu_idx], rot_gt[:, imu_idx])
-
+   
     # 拼接结果
     results = torch.stack([err_rot, err_baseline, err_ours], dim=1)  # [N, 3]
     results = results * 180 / torch.pi  # 转换为度数
