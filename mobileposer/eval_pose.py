@@ -99,7 +99,7 @@ def evaluate_pose(model, dataset, calibrator:TicOperator, save_dir=None, use_cal
                 acc = x[:, :imu_num * 3] * amass.acc_scale
                 rot = x[:, imu_num * 3:]
                 
-                rot_cali, acc_cali, _, _, use_calis = calibrator.run_per_frame(rot, acc)
+                rot_cali, acc_cali, _, use_calis = calibrator.run_per_frame(rot, acc)
                 acc_cali = acc_cali / amass.acc_scale
                 
                 x = torch.cat((acc_cali.flatten(1), rot_cali.flatten(1)), dim=1)
@@ -163,7 +163,7 @@ if __name__ == '__main__':
     
     # # load LSTM calibrator model
     lstm_ic = LSTMIC(n_input=imu_num * (3 + 3 * 3), n_output=imu_num * 6)
-    lstm_ic.restore("data/checkpoints/calibrator/LSTMIC_frame/LSTMIC_frame_20.pth")
+    lstm_ic.restore("data/checkpoints/calibrator/LSTMIC_realdata_0824_2/LSTMIC_realdata_0824_2_5.pth")
     
     net = lstm_ic.to(device).eval()
     
@@ -177,7 +177,7 @@ if __name__ == '__main__':
     dataset = PoseDataset(fold=fold, evaluate=args.dataset)
     
     # set differenet save_model name from args.calibrate
-    save_model_name = model_config.name + ('_LSTMcalibrated' if args.use_cali else '')
+    save_model_name = model_config.name + ('_LSTM_RealD_0824_2' if args.use_cali else '')
     
     save_dir = Path('data') / 'eval' / save_model_name / model_config.combo_id / args.dataset
 
