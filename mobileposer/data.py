@@ -22,7 +22,6 @@ class PoseDataset(Dataset):
         self.finetune = finetune
         self.bodymodel = art.model.ParametricModel(paths.smpl_file)
         self.combos = list(amass.combos.items()) # 12 combos
-        print(f"combos: {self.combos}")
         self.data = self._prepare_dataset()
 
     def _get_data_files(self, data_folder):
@@ -50,11 +49,7 @@ class PoseDataset(Dataset):
     def _prepare_dataset(self):
         data_folder = paths.processed_datasets / ('eval' if (self.finetune or self.evaluate) else '')
             
-        print(f"Loading {self.fold} data from {data_folder}.")
-            
         data_files = self._get_data_files(data_folder)
-        
-        print(f"data_files: {data_files}")
         
         data = {key: [] for key in ['imu_inputs', 'pose_outputs', 'joint_outputs', 'tran_outputs', 'vel_outputs', 'foot_outputs']}
         for data_file in tqdm(data_files):

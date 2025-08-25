@@ -163,28 +163,35 @@ if __name__ == '__main__':
     
     # # load LSTM calibrator model
     lstm_ic = LSTMIC(n_input=imu_num * (3 + 3 * 3), n_output=imu_num * 6)
-    lstm_ic.restore("data/checkpoints/calibrator/LSTMIC_realdata_0824_2/LSTMIC_realdata_0824_2_5.pth")
+    # lstm_ic.restore("data/checkpoints/calibrator/LSTMIC_realdata_0824_2/LSTMIC_realdata_0824_2_5.pth")
+    ckpt_dir = 'data/checkpoints/calibrator/LSTMIC_realdata_0824_2'
     
-    net = lstm_ic.to(device).eval()
+    # iterate to find the best checkpoint
+    for ckpt_name in os.listdir(ckpt_dir):
+        # print分隔符
+        print('='*50)
+        ckpt_path = os.path.join(ckpt_dir, ckpt_name)
+        lstm_ic.restore(ckpt_path)
     
-    ts = TicOperator(TIC_network=net, imu_num=imu_num, data_frame_rate=30)
-    ts.reset()
-    if args.use_cali:
-        print('Using calibrator model for evaluation.')
-    
-    fold = 'test'
-    
-    dataset = PoseDataset(fold=fold, evaluate=args.dataset)
-    
-    # set differenet save_model name from args.calibrate
-    save_model_name = model_config.name + ('_LSTM_RealD_0824_2' if args.use_cali else '')
-    
-    save_dir = Path('data') / 'eval' / save_model_name / model_config.combo_id / args.dataset
+        net = lstm_ic.to(device).eval()
+        
+        ts = TicOperator(TIC_network=net, imu_num=imu_num, data_frame_rate=30)
+        ts.reset()
+        # if args.use_cali:
+        #     print('Using calibrator model for evaluation.')
+        
+        fold = 'test'
+        
+        dataset = PoseDataset(fold=fold, evaluate=args.dataset)
+        
+        # set differenet save_model name from args.calibrate
+        # save_model_name = model_config.name + ('_LSTM_RealD_0824_2' if args.use_cali else '')
+        # save_model_name is related to the ckpt_name
+        save_model_name = model_config.name + ('_' + ckpt_name.split('.')[0] if args.use_cali else '')
+        
+        save_dir = Path('data') / 'eval' / save_model_name / model_config.combo_id / args.dataset
 
-    print(f"Saving results to: {save_dir}")
-    save_dir.mkdir(parents=True, exist_ok=True)
-    
-    # evaluate pose
-    print(f"Starting evaluation: {args.dataset.capitalize()}")
-    # evaluate_pose(model, dataset, evaluate_tran=True, save_dir=save_dir)
-    evaluate_pose(model=model, dataset=dataset, calibrator=ts, save_dir=save_dir, use_cali=args.use_cali)
+        save_dir.mkdir(parents=True, exist_ok=True)
+        
+        # evaluate_pose(model, dataset, evaluate_tran=True, save_dir=save_dir)
+        evaluate_pose(model=model, dataset=dataset, calibrator=ts, save_dir=save_dir, use_cali=args.use_cali)
