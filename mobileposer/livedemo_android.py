@@ -9,6 +9,7 @@ from articulate.utils.noitom import *
 from articulate.utils.unity import MotionViewer
 
 from articulate.utils.wearable import WearableSensorSet
+from articulate.utils.pygame import StreamingDataViewer
 from auxiliary import calibrate_q, quaternion_inverse
 
 from utils.model_utils import load_mobileposer_model, load_heightposer_model
@@ -101,21 +102,6 @@ def align_sensor(sensor_set, n_calibration):
     qIC_list, qOS_list = [], []
     
     for i in range(n_calibration):
-        # qIS, qCO = [], []
-
-        # qIS.append(torch.tensor([0., 0., 1.0, 0.]).float()) # noitom
-        
-        # # align wearable sensor
-        # while len(qCO) < 1:
-        #     sensor_data = sensor_set.get()
-        #     if not 0 in sensor_data or not 1 in sensor_data:
-        #         continue
-        #     qCO.append(torch.tensor(sensor_data[i].orientation).float()) # wearable sensor
-        #     print('\rCalibrating... (%d/%d)' % (i, n_calibration), end='')
-            
-        # qCI, qSO = calibrate_q(torch.stack(qIS), torch.stack(qCO))
-        # print('\tfinished\nqCI:', qCI, '\tqSO:', qSO)
-        
         # using cached qCI and qSO
         if i == 0:
             qCI = torch.tensor([-0.0050, -0.7486, -0.6630,  0.0054]).float()
@@ -226,7 +212,7 @@ if __name__ == '__main__':
     
     idx = 0
 
-    with torch.no_grad(), MotionViewer(2, overlap=False, names=['gt', 'real']) as viewer:
+    with torch.no_grad(), MotionViewer(1, overlap=False, names=['real']) as viewer:
         while True:
             clock.tick(30)
             viewer.clear_line(render=False)
@@ -273,7 +259,15 @@ if __name__ == '__main__':
             aM = aM.view(imu_num, 3)
             RMB_gt = RMB_gt.view(imu_num, 3, 3)
             aM_gt = aM_gt.view(imu_num, 3)
-            
+
+            # delta_R = RMB[1].t() @ RMB_gt[1]
+            # rot_axis = art.math.rotation_matrix_to_axis_angle(delta_R).view(1, 3)
+            # rot_euler = art.math.rotation_matrix_to_euler_angle(delta_R, seq='YZX').view(3)
+            # rot_euler = rot_euler * 180 / np.pi
+            # sviewer.plot(rot_euler)
+            # print('\r', clock.get_fps(), end='')
+            # continue
+
             aM = aM / amass.acc_scale
             aM_gt = aM_gt / amass.acc_scale
             
@@ -281,15 +275,15 @@ if __name__ == '__main__':
             input_gt = torch.cat([aM_gt.flatten(), RMB_gt.flatten()], dim=0).to("cuda")
 
             pose = net_gt.forward_frame(input)
-            pose_gt = net.forward_frame(input_gt)
+            # pose_gt = net.forward_frame(input_gt)
 
             poses.append(pose)
             
             pose = pose.cpu().numpy()      
-            pose_gt = pose_gt.cpu().numpy()
+            # pose_gt = pose_gt.cpu().numpy()
             
             zero_tran = np.array([0, 0, 0])  
-            viewer.update_all([pose_gt, pose], [zero_tran, zero_tran], render=False)
+            viewer.update_all([pose], [zero_tran], render=False)
             viewer.render()
             
             idx += 1

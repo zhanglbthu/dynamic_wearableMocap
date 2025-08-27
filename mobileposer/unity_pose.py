@@ -1,6 +1,7 @@
 from pygame.time import Clock
 import articulate as art
 from articulate.utils.unity import MotionViewer
+from articulate.utils.pygame import StreamingDataViewer
 from utils import *
 from config import paths, joint_set, imu_num
 import torch
@@ -23,9 +24,11 @@ def value2color(value):
 class MotionViewerManager:
     def __init__(self, sub_num, overlap=True, names=None):
         self.viewer = MotionViewer(sub_num, overlap, names)
+        self.sviewer = StreamingDataViewer(3, y_range=(-90, 90), window_length=200, names=['Y', 'Z', 'X'])
+        self.sviewer.connect()
         self.viewer.connect()     
 
-    def visualize(self, pose, tran=None, use_cali_list=None):
+    def visualize(self, pose, tran=None, use_cali_list=None, delta_rot=None):
         clock = Clock()
         sub_num = len(pose)
 
@@ -76,6 +79,9 @@ class MotionViewerManager:
                     thigh_trigger = False
                     thigh_idx = 0
 
+            if delta_rot is not None:
+                self.sviewer.plot(delta_rot[i].cpu().numpy())
+                
             self.viewer.update_all(pose_list, tran_list, render=False)
             self.viewer.render()
             print('\r', clock.get_fps(), end='')
@@ -136,15 +142,19 @@ if __name__ == '__main__':
     
     data_dir = 'data/eval'
     dataset_name = 'imuposer'
-    model_list = ['mobileposer', 'mobileposer_ws128_woRD_frame_LSTMcalibrated', 'mobileposer_ws128_woRD_calibrated']
+    model_list = ['mobileposer', 'mobileposer_LSTMIC_realdata_0824_2_best', 'mobileposer_ws128_woRD_LSTMcalibrated', 'mobileposer_ws128_woRD_calibrated']
 
     # 获取data_dir/model_list[0]/dataset_name/中以.pt结尾的文件个数
     idx_num = len([name for name in os.listdir(os.path.join(data_dir, model_list[0], 'lw_rp', dataset_name)) if name.endswith('.pt')])
 
-    idx = [i for i in range(4, 9)]
+    idx = [i for i in range(24, 25)]
     print('len:', idx)
     
+    rot_dir = 'data/rotation_error/imuposer'
+    
     for i in idx:
+        rot_path = os.path.join(rot_dir, f"{i}.pt")
+        delta_rot = torch.load(rot_path)
         
         pose_list, tran_list, use_cali_list = [], [], []
         for name in model_list:
@@ -160,8 +170,8 @@ if __name__ == '__main__':
             
             pose_list.append(pose_p)
         
-        name_list = get_name(model_list=model_list, i=i)
-        name_list = ['gt', 'mocap', 'mocap+lstm', 'mocap+tic']
+        # name_list = get_name(model_list=model_list, i=i)
+        name_list = ['gt', 'mocap', 'ours_realD', 'ours_synD', 'baseline']
 
         viewer_manager = MotionViewerManager(len(pose_list), overlap=False, names=name_list)
 
