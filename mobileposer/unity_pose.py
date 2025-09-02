@@ -142,12 +142,12 @@ if __name__ == '__main__':
     
     data_dir = 'data/eval'
     dataset_name = 'imuposer'
-    model_list = ['mobileposer', 'mobileposer_LSTMIC_realdata_0824_2_best', 'mobileposer_ws128_woRD_LSTMcalibrated', 'mobileposer_ws128_woRD_calibrated']
+    model_list = ['mobileposer']
 
     # 获取data_dir/model_list[0]/dataset_name/中以.pt结尾的文件个数
     idx_num = len([name for name in os.listdir(os.path.join(data_dir, model_list[0], 'lw_rp', dataset_name)) if name.endswith('.pt')])
 
-    idx = [i for i in range(24, 25)]
+    idx = [i for i in range(33, 34)]
     print('len:', idx)
     
     rot_dir = 'data/rotation_error/imuposer'
@@ -168,10 +168,10 @@ if __name__ == '__main__':
                 pose_list.append(pose_t)
                 print("frames:", pose_t.shape[0])
             
-            pose_list.append(pose_p)
+            # pose_list.append(pose_p)
         
         # name_list = get_name(model_list=model_list, i=i)
-        name_list = ['gt', 'mocap', 'ours_realD', 'ours_synD', 'baseline']
+        name_list = ['gt']
 
         viewer_manager = MotionViewerManager(len(pose_list), overlap=False, names=name_list)
 

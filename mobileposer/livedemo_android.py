@@ -122,6 +122,7 @@ def tpose_calibration_noitom(imu_set):
          torch.save(RMI_gt, os.path.join(paths.temp_dir, 'RMI.pt'))
      else:
          RMI_gt = torch.load(os.path.join(paths.temp_dir, 'RMI.pt'))
+     RMI_gt = torch.tensor([[-1., 0., 0.], [0., 0., -1.], [0., -1., 0.]]).float()
      print(RMI_gt)
  
      input('Stand straight in T-pose and press enter. The calibration will begin in 3 seconds')
@@ -166,7 +167,7 @@ if __name__ == '__main__':
     sensor_set = WearableSensorSet()
     clock = Clock()
     
-    n_calibration = 2
+    n_calibration = 1
     
     # # set baseline network (heightposer_version)
     # ckpt_path = "data/checkpoints/heightposer_RNNwInit/lw_rp/base_model.pth"
@@ -196,7 +197,7 @@ if __name__ == '__main__':
     # ts.reset()
     # print('TicOperator model loaded.')
 
-    qIC_list, qOS_list = align_sensor(sensor_set=sensor_set, n_calibration=2)
+    qIC_list, qOS_list = align_sensor(sensor_set, n_calibration)
     RMI, RSB = tpose_calibration(n_calibration)
 
     # add ground truth readings
@@ -211,7 +212,7 @@ if __name__ == '__main__':
     net_gt.eval()
     
     idx = 0
-
+    sviewer = StreamingDataViewer(3, y_range=(-90, 90), window_length=200, names=['Y', 'Z', 'X']); sviewer.connect()
     with torch.no_grad(), MotionViewer(1, overlap=False, names=['real']) as viewer:
         while True:
             clock.tick(30)
@@ -260,13 +261,13 @@ if __name__ == '__main__':
             RMB_gt = RMB_gt.view(imu_num, 3, 3)
             aM_gt = aM_gt.view(imu_num, 3)
 
-            # delta_R = RMB[1].t() @ RMB_gt[1]
-            # rot_axis = art.math.rotation_matrix_to_axis_angle(delta_R).view(1, 3)
-            # rot_euler = art.math.rotation_matrix_to_euler_angle(delta_R, seq='YZX').view(3)
-            # rot_euler = rot_euler * 180 / np.pi
-            # sviewer.plot(rot_euler)
-            # print('\r', clock.get_fps(), end='')
-            # continue
+            delta_R = RMB[1].t() @ RMB_gt[1]
+            rot_axis = art.math.rotation_matrix_to_axis_angle(delta_R).view(1, 3)
+            rot_euler = art.math.rotation_matrix_to_euler_angle(delta_R, seq='YZX').view(3)
+            rot_euler = rot_euler * 180 / np.pi
+            sviewer.plot(rot_euler)
+            print('\r', clock.get_fps(), end='')
+            continue
 
             aM = aM / amass.acc_scale
             aM_gt = aM_gt / amass.acc_scale
