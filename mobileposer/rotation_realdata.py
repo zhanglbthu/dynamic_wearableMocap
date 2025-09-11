@@ -45,7 +45,7 @@ if __name__ == '__main__':
     rR_q = art.math.axis_angle_to_quaternion(rR_axis).view(-1, 4)
     
     # rviewer = RotationViewer(1, order='wxyz'); rviewer.connect()
-    sviewer = StreamingDataViewer(3, y_range=(-90, 90), window_length=100, names=['Y', 'Z', 'X']); sviewer.connect()
+    sviewer = StreamingDataViewer(3, y_range=(-180, 180), window_length=100, names=['Y', 'Z', 'X']); sviewer.connect()
     clock = Clock()
     
     sviewer.start_recording(save_path, fps=30)

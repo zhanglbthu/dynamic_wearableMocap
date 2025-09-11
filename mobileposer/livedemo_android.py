@@ -10,6 +10,7 @@ from articulate.utils.unity import MotionViewer
 
 from articulate.utils.wearable import WearableSensorSet
 from articulate.utils.pygame import StreamingDataViewer
+from articulate.utils.bullet.view_rotation_np import RotationViewer
 from auxiliary import calibrate_q, quaternion_inverse
 
 from utils.model_utils import load_mobileposer_model, load_heightposer_model
@@ -104,7 +105,7 @@ def align_sensor(sensor_set, n_calibration):
     for i in range(n_calibration):
         # using cached qCI and qSO
         if i == 0:
-            qCI = torch.tensor([-0.0050, -0.7486, -0.6630,  0.0054]).float()
+            qCI = torch.tensor([0.0137, -0.7311, -0.6820, -0.0151]).float()
         elif i == 1:
             qCI = torch.tensor([-0.0125, -0.7841, -0.6205,  0.0041]).float()
         qSO = torch.tensor([1., -0., -0., -0.]).float()  
@@ -167,7 +168,7 @@ if __name__ == '__main__':
     sensor_set = WearableSensorSet()
     clock = Clock()
     
-    n_calibration = 1
+    n_calibration = 2
     
     # # set baseline network (heightposer_version)
     # ckpt_path = "data/checkpoints/heightposer_RNNwInit/lw_rp/base_model.pth"
@@ -261,14 +262,6 @@ if __name__ == '__main__':
             RMB_gt = RMB_gt.view(imu_num, 3, 3)
             aM_gt = aM_gt.view(imu_num, 3)
 
-            delta_R = RMB[1].t() @ RMB_gt[1]
-            rot_axis = art.math.rotation_matrix_to_axis_angle(delta_R).view(1, 3)
-            rot_euler = art.math.rotation_matrix_to_euler_angle(delta_R, seq='YZX').view(3)
-            rot_euler = rot_euler * 180 / np.pi
-            sviewer.plot(rot_euler)
-            print('\r', clock.get_fps(), end='')
-            continue
-
             aM = aM / amass.acc_scale
             aM_gt = aM_gt / amass.acc_scale
             
@@ -276,15 +269,15 @@ if __name__ == '__main__':
             input_gt = torch.cat([aM_gt.flatten(), RMB_gt.flatten()], dim=0).to("cuda")
 
             pose = net_gt.forward_frame(input)
-            # pose_gt = net.forward_frame(input_gt)
+            pose_gt = net.forward_frame(input_gt)
 
             poses.append(pose)
             
             pose = pose.cpu().numpy()      
-            # pose_gt = pose_gt.cpu().numpy()
+            pose_gt = pose_gt.cpu().numpy()
             
             zero_tran = np.array([0, 0, 0])  
-            viewer.update_all([pose], [zero_tran], render=False)
+            viewer.update_all([pose_gt], [zero_tran], render=False)
             viewer.render()
             
             idx += 1

@@ -129,7 +129,7 @@ class StreamingDataViewer:
         if self.screen is None:
             print('[Error] StreamingDataViewer is not connected.')
             return
-        assert len(values) == self.n, 'Number of data is not equal to the init value in StreamingDataViewer.'
+        assert len(values) == self.n, f'Number of data ({len(values)}) is not equal to the init value ({self.n}) in StreamingDataViewer.'
         self.screen.fill((255, 255, 255))
         
         # self.update_y()
