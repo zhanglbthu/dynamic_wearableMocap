@@ -171,14 +171,13 @@ if __name__ == '__main__':
     n_calibration = 2
     
     # # set baseline network (heightposer_version)
-    # ckpt_path = "data/checkpoints/heightposer_RNNwInit/lw_rp/base_model.pth"
+    # ckpt_path = "data/checkpoints/heightposer/lw_rp/base_model.pth"
     # net = load_heightposer_model(ckpt_path, combo_id=model_config.combo_id)
     # print('HeightPoser model loaded.')
     
     # set mobileposer network
     ckpt_path = "data/checkpoints/mobileposer/lw_rp/base_model.pth"
     net = load_mobileposer_model(ckpt_path, combo_id=model_config.combo_id)
-    net_gt = load_mobileposer_model(ckpt_path, combo_id=model_config.combo_id)
     print('Mobileposer model loaded.')
     
     # set calibrator model
@@ -210,7 +209,6 @@ if __name__ == '__main__':
     poses, trans = [], []
     
     net.eval()
-    net_gt.eval()
     
     idx = 0
     sviewer = StreamingDataViewer(3, y_range=(-90, 90), window_length=200, names=['Y', 'Z', 'X']); sviewer.connect()
@@ -268,16 +266,14 @@ if __name__ == '__main__':
             input = torch.cat([aM.flatten(), RMB.flatten()], dim=0).to("cuda")
             input_gt = torch.cat([aM_gt.flatten(), RMB_gt.flatten()], dim=0).to("cuda")
 
-            pose = net_gt.forward_frame(input)
-            pose_gt = net.forward_frame(input_gt)
+            pose = net.forward_frame(input_gt)
 
             poses.append(pose)
             
             pose = pose.cpu().numpy()      
-            pose_gt = pose_gt.cpu().numpy()
             
             zero_tran = np.array([0, 0, 0])  
-            viewer.update_all([pose_gt], [zero_tran], render=False)
+            viewer.update_all([pose], [zero_tran], render=False)
             viewer.render()
             
             idx += 1

@@ -45,7 +45,7 @@ class paths:
 
     # livedemo record directory
     temp_dir = Path("data/livedemo/temp")
-    live_record_dir = Path("data/livedemo/record")
+    live_record_dir = Path("data/livedemo/record/pants_3")
     
     # TotalCapture dataset
     calibrated_totalcapture = Path("/root/autodl-tmp/mobileposer/dataset_raw/TotalCapture/calibrated")
