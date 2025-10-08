@@ -93,7 +93,6 @@ def evaluate_pose(model, dataset, calibrator:TicOperator, save_dir=None, use_cal
     with torch.no_grad():
         for idx, (x, y) in enumerate(tqdm(zip(xs, ys), total=len(xs))):
             # x: [N, 24], y: ([N, 144], [N, 3])
-            
             if use_cali:
                 calibrator.reset()
                 acc = x[:, :imu_num * 3] * amass.acc_scale
@@ -122,6 +121,8 @@ def evaluate_pose(model, dataset, calibrator:TicOperator, save_dir=None, use_cal
             if save_dir:
                 torch.save({'pose_t': pose_t, 
                             'pose_p': pose_p,
+                            'rot': rot,
+                            'rot_p': rot_cali,
                             'use_cali': use_calis if use_cali else None,
                             },
                            save_dir / f"{idx}.pt")
@@ -164,10 +165,13 @@ if __name__ == '__main__':
     # # load LSTM calibrator model
     lstm_ic = LSTMIC(n_input=imu_num * (3 + 3 * 3), n_output=imu_num * 6)
     # lstm_ic.restore("data/checkpoints/calibrator/LSTMIC_realdata_0824_2/LSTMIC_realdata_0824_2_5.pth")
-    ckpt_dir = 'data/checkpoints/calibrator/LSTMIC_realdata_0824_2'
+    ckpt_dir = 'data/checkpoints/calibrator/RealData_0915_4pants'
     
     # iterate to find the best checkpoint
     for ckpt_name in os.listdir(ckpt_dir):
+        ckpt_idx = int(ckpt_name.split('_')[-1].split('.')[0])
+        if ckpt_idx % 5 != 0:
+            continue
         # print分隔符
         print('='*50)
         ckpt_path = os.path.join(ckpt_dir, ckpt_name)
@@ -185,8 +189,6 @@ if __name__ == '__main__':
         dataset = PoseDataset(fold=fold, evaluate=args.dataset)
         
         # set differenet save_model name from args.calibrate
-        # save_model_name = model_config.name + ('_LSTM_RealD_0824_2' if args.use_cali else '')
-        # save_model_name is related to the ckpt_name
         save_model_name = model_config.name + ('_' + ckpt_name.split('.')[0] if args.use_cali else '')
         
         save_dir = Path('data') / 'eval' / save_model_name / model_config.combo_id / args.dataset

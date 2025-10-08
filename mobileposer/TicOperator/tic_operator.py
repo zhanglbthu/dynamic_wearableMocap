@@ -79,11 +79,21 @@ class TicOperator():
         self.data_buffer = []
 
     @torch.no_grad()
-    def calibrate_step(self, acc_cat_rot):
+    def calibrate_step_lstm(self, acc_cat_rot):
         acc, rot = acc_cat_rot[0:self.imu_num * 3].view(-1, self.imu_num, 3, 1), acc_cat_rot[self.imu_num * 3:].view(-1,
                                                                                                         self.imu_num, 3,
                                                                                                         3)
         rot = rot.matmul(self.R_BS)
+
+        return torch.cat([acc.flatten(1), rot.flatten(1)], dim=-1)
+
+    @torch.no_grad()
+    def calibrate_step(self, acc_cat_rot):
+        acc, rot = acc_cat_rot[0:self.imu_num * 3].view(-1, self.imu_num, 3, 1), acc_cat_rot[self.imu_num * 3:].view(-1,
+                                                                                                        self.imu_num, 3,
+                                                                                                        3)
+        rot = self.R_DG.transpose(-2, -1).matmul(rot).matmul(self.R_BS.transpose(-2, -1))
+        acc = self.R_DG.transpose(-2, -1).matmul(acc - self.GA) + self.GA
 
         return torch.cat([acc.flatten(1), rot.flatten(1)], dim=-1)
 
@@ -199,7 +209,7 @@ class TicOperator():
         for i in range(rot.shape[0]):   
             self.R_BS = delta_R_BS[i]
             
-            recali_data.append(self.calibrate_step(origin_acc_cat_rot[i]))
+            recali_data.append(self.calibrate_step_lstm(origin_acc_cat_rot[i]))
             
         recali_data = torch.cat(recali_data, dim=0)
         acc = recali_data[:, :3 * self.imu_num].reshape(-1, self.imu_num, 3)
