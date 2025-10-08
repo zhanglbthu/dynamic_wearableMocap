@@ -152,8 +152,8 @@ def get_name(model_list=["ours", "baseline"], i=0):
 
 if __name__ == '__main__':
     
-    data_dir = 'data/livedemo/sit_20250811_180140'
-    model_list = ['RealData_gt_pred.pt', 'RealData_raw_pred.pt', 'RealData_cali_pred.pt', 'sit_20250811_180140_lstmic.pt', 'sit_20250811_180140_tic.pt']
+    data_dir = 'data/livedemo_processed/walk_20250817_193452'
+    model_list = ['RealData_gt_pred.pt']
 
     # # 获取data_dir/model_list[0]/dataset_name/中以.pt结尾的文件个数
     # idx_num = len([name for name in os.listdir(os.path.join(data_dir, model_list[0], 'lw_rp', dataset_name)) if name.endswith('.pt')])
@@ -168,7 +168,7 @@ if __name__ == '__main__':
             
         pose_list.append(pose_p)
         
-    name_list = ['gt', 'real', 'lstm_real', 'lstm_syn', 'baseline']
+    name_list = ['gt_input']
 
     # rviewer = RotationViewer(3, order='wxyz'); rviewer.connect()
     # data_path = os.path.join(data_dir, model_list[1])

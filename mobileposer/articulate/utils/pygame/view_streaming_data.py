@@ -11,6 +11,7 @@ import numpy as np
 from collections import deque
 import matplotlib
 from scipy.fftpack import fft as scipy_fft
+import cv2
 
 
 class StreamingDataViewer:
@@ -128,7 +129,7 @@ class StreamingDataViewer:
         if self.screen is None:
             print('[Error] StreamingDataViewer is not connected.')
             return
-        assert len(values) == self.n, 'Number of data is not equal to the init value in StreamingDataViewer.'
+        assert len(values) == self.n, f'Number of data ({len(values)}) is not equal to the init value ({self.n}) in StreamingDataViewer.'
         self.screen.fill((255, 255, 255))
         
         # self.update_y()
@@ -146,11 +147,36 @@ class StreamingDataViewer:
             for i in range(len(self.names)):
                 self.screen.blit(self.names[i], (10, i * self.font_size))
         pygame.display.update()
+        
+        # 保存当前帧到视频
+        if getattr(self, "recording", False):
+            frame_str = pygame.image.tostring(self.screen, "RGB")
+            frame = np.frombuffer(frame_str, dtype=np.uint8).reshape((self.H, self.W, 3))
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)  # pygame是RGB，cv2写入要BGR
+            self.video_writer.write(frame)
+        
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.disconnect()
 
-
+    def start_recording(self, save_path="output.mp4", fps=30):
+        """
+        Start recording the streaming visualization to a video file.
+        """
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        self.video_writer = cv2.VideoWriter(save_path, fourcc, fps, (self.W, self.H))
+        self.recording = True
+        print(f"[INFO] Start recording video to {save_path} at {fps} FPS")
+        
+    def stop_recording(self):
+        """
+        Stop recording and release video writer.
+        """
+        if hasattr(self, "video_writer") and self.video_writer is not None:
+            self.video_writer.release()
+            self.video_writer = None
+        self.recording = False
+        print("[INFO] Stop recording video")
 # example
 if __name__ == '__main__':
     import time
