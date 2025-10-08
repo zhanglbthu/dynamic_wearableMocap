@@ -4,13 +4,11 @@ r"""
 
 
 __all__ = ['RotationRepresentation', 'to_rotation_matrix', 'radian_to_degree', 'degree_to_radian', 'normalize_angle',
-           'angle_difference', 'angle_between', 'angle_from_two_vectors', 'svd_rotate', 'generate_random_rotation_matrix',
+           'angle_difference', 'angle_between', 'svd_rotate', 'generate_random_rotation_matrix',
            'axis_angle_to_rotation_matrix', 'rotation_matrix_to_axis_angle', 'r6d_to_rotation_matrix',
            'rotation_matrix_to_r6d', 'quaternion_to_axis_angle', 'axis_angle_to_quaternion',
            'quaternion_to_rotation_matrix', 'rotation_matrix_to_euler_angle', 'euler_angle_to_rotation_matrix',
-           'rotation_matrix_to_euler_angle_np', 'euler_angle_to_rotation_matrix_np', 'euler_convert_np',
-           'quaternion_product', 'quaternion_inverse', 'quaternion_mean', 'generate_random_rotation_matrix_constrained',
-           'quaternion_mean_robust', 'normalize_rotation_matrix']
+           'rotation_matrix_to_euler_angle_np', 'euler_angle_to_rotation_matrix_np', 'euler_convert_np']
 
 
 from .general import *
@@ -47,102 +45,23 @@ def to_rotation_matrix(r: torch.Tensor, rep: RotationRepresentation):
     elif rep == RotationRepresentation.EULER_ANGLE:
         return euler_angle_to_rotation_matrix(r)
     elif rep == RotationRepresentation.ROTATION_MATRIX:
-        return r.view(-1, 3, 3)
+        return r.reshape(-1, 3, 3)
     else:
         raise Exception('unknown rotation representation')
-
-
-def normalize_rotation_matrix(R: torch.Tensor, check_det=True):
-    r"""
-    Normalize rotation matrices using svd. (torch, batch)
-
-    :param R: Rotation matrix tensor that can reshape to [batch_size, 3, 3].
-    :param check_det: Check if the determinant is 1.
-    :return: Normalized rotation matrix tensor of shape [batch_size, 3, 3].
-    """
-    R = R.view(-1, 3, 3)
-    U, S, V = torch.svd(R)
-    R = U.bmm(V.transpose(1, 2))
-    if check_det:
-        m = R.det() < 0
-        R[m] = U[m].matmul(torch.diag(torch.tensor([1, 1, -1.], device=R.device))).bmm(V[m].transpose(1, 2))
-    return R
 
 
 def radian_to_degree(q):
     r"""
     Convert radians to degrees.
     """
-    return q * (180.0 / np.pi)
+    return q * 180.0 / np.pi
 
 
 def degree_to_radian(q):
     r"""
     Convert degrees to radians.
     """
-    return q * (np.pi / 180.0)
-
-
-def quaternion_mean(q):
-    r"""
-    Calculate the mean quaternion. (torch)
-
-    Warning: Input quaternions should be very close to each other.
-
-    :param q: Tensor [N, 4].
-    :return: Tensor [4].
-    """
-    q = q.view(-1, 4)
-    q = q * q[:, int(q.abs().mean(dim=0).argmax())].sign().view(-1, 1).expand(-1, 4)
-    return normalize_tensor(q.mean(dim=0))
-
-
-def quaternion_mean_robust(q, w=None):
-    r"""
-    Calculate the (weighted) average quaternion. (torch)
-
-    This is more robust than quaternion_mean(), but slower.
-    Reference: https://ntrs.nasa.gov/api/citations/20070017872/downloads/20070017872.pdf
-
-    :param q: Tensor [N, 4].
-    :param w: Tensor [N] for quaternion weights.
-    :return: Tensor [4].
-    """
-    q = q.view(-1, 4)
-    w = torch.ones_like(q[:, 0]) / q.shape[0] if w is None else w.view(-1) / w.sum()
-    m = (q.unsqueeze(-1).bmm(q.unsqueeze(-2)) * w.view(-1, 1, 1)).sum(dim=0)
-    q = torch.symeig(m, eigenvectors=True).eigenvectors[:, -1]
-    return q
-
-
-def quaternion_product(q1, q2):
-    r"""
-    Multiply two quaternions. (torch, batch)
-    Quaternion in w, x, y, z.
-
-    :param q1: Tensor [N, 4].
-    :param q2: Tensor [N, 4].
-    :return: Tensor [N, 4].
-    """
-    w1, xyz1 = q1.view(-1, 4)[:, :1], q1.view(-1, 4)[:, 1:]
-    w2, xyz2 = q2.view(-1, 4)[:, :1], q2.view(-1, 4)[:, 1:]
-    xyz = torch.cross(xyz1, xyz2, dim=-1) + w1 * xyz2 + w2 * xyz1
-    w = w1 * w2 - (xyz1 * xyz2).sum(dim=1, keepdim=True)
-    q = torch.cat((w, xyz), dim=1).view_as(q1)
-    return q
-
-
-def quaternion_inverse(q):
-    r"""
-    Inverse a quaternion. (torch, batch)
-    Quaternion in w, x, y, z.
-
-    :param q: Tensor [N, 4].
-    :return: Tensor [N, 4].
-    """
-    invq = q.clone().view(-1, 4)
-    invq[:, 1:].neg_()
-    return invq.view_as(q)
+    return q / 180.0 * np.pi
 
 
 def normalize_angle(q):
@@ -176,72 +95,29 @@ def angle_between(rot1: torch.Tensor, rot2: torch.Tensor, rep=RotationRepresenta
     rot1 = to_rotation_matrix(rot1, rep)
     rot2 = to_rotation_matrix(rot2, rep)
     offsets = rot1.transpose(1, 2).bmm(rot2)
-    angles = rotation_matrix_to_axis_angle(offsets).norm(dim=1)
+    angles = rotation_matrix_2_angle(offsets)
     return angles
 
 
-def angle_from_two_vectors(v1, v2, signed=False):
+
+
+def svd_rotate(source_points: torch.Tensor, target_points: torch.Tensor):
     r"""
-    Calculate the angle between two vectors. (torch, batch)
-
-    If signed is False, return radians in [0, pi].
-    If signed is True, return radians in [-pi, pi].
-
-    :param v1: Tensor that can reshape to [batch_size, 3].
-    :param v2: Tensor that can reshape to [batch_size, 3].
-    :param signed: If True, return signed angles.
-    :return: Angles in shape [batch_size] in radians.
-    """
-    v1 = normalize_tensor(v1.view(-1, 3))
-    v2 = normalize_tensor(v2.view(-1, 3))
-    angle = (v1 * v2).sum(dim=-1).clip(-1, 1).acos()
-    if signed:
-        cross_product = torch.cross(v1, v2, dim=-1)
-        angle[cross_product[:, 2] < 0] = -angle[cross_product[:, 2] < 0]
-    return angle
-
-
-def svd_rotate(source_points: torch.Tensor, target_points: torch.Tensor, calc_R=True, calc_t=False, calc_s=False):
-    r"""
-    Get the rotation/translation/scale that transform source points to the corresponding target points. (torch, batch)
-    i.e., min || s * R * source_points + t - target_points || ^ 2.
-    Note: maybe not exactly the mathematical global minimum. I'm not sure.
+    Get the rotation that rotates source points to the corresponding target points. (torch, batch)
 
     :param source_points: Source points in shape [batch_size, m, n]. m is the number of the points. n is the dim.
     :param target_points: Target points in shape [batch_size, m, n]. m is the number of the points. n is the dim.
-    :param calc_R: Calculate rotation. If false, fix R=I.
-    :param calc_t: Calculate translation. If false, fix t=0.
-    :param calc_s: Calculate scale. If false, fix s=1.
-    :return: Rotation R in shape [batch_size, n, n], translation t in shape [batch_size, n],
-             and scale s in shape [batch_size] that transform source points to target points,
-             and the transformed source points (s * R * source_points + t) in shape [batch_size, m, n].
+    :return: Rotation matrices in shape [batch_size, 3, 3] that rotate source points to target points.
     """
-    source_points_mean = source_points.mean(dim=1, keepdim=True) if calc_t else torch.zeros_like(source_points[:, :1])
-    target_points_mean = target_points.mean(dim=1, keepdim=True) if calc_t else torch.zeros_like(target_points[:, :1])
-
-    if calc_s:
-        source_points_rms = ((source_points - source_points_mean) * (source_points - source_points_mean)).sum(dim=[1, 2])
-        target_points_rms = ((target_points - target_points_mean) * (target_points - target_points_mean)).sum(dim=[1, 2])
-        scale = (target_points_rms / source_points_rms).sqrt()
-    else:
-        scale = torch.ones_like(source_points[:, 0, 0])
-
-    if calc_R:
-        usv = [m.svd() for m in (source_points - source_points_mean).transpose(1, 2).bmm(target_points - target_points_mean)]
-        u = torch.stack([_[0] for _ in usv])
-        v = torch.stack([_[2] for _ in usv])
-        vut = v.bmm(u.transpose(1, 2))
-        for i in range(vut.shape[0]):
-            if vut[i].det() < -0.9:
-                v[i, 2].neg_()
-                vut[i] = v[i].mm(u[i].t())
-        rotation = vut
-    else:
-        rotation = torch.eye(source_points.shape[2]).repeat(source_points.shape[0], 1, 1).to(source_points.device)
-
-    translation = -scale.view(-1, 1, 1) * rotation.bmm(source_points_mean.transpose(1, 2)) + target_points_mean.transpose(1, 2)
-    transformed_source_points = scale.view(-1, 1, 1) * source_points.bmm(rotation.transpose(1, 2)) + translation.transpose(1, 2)
-    return rotation, translation.squeeze(2), scale, transformed_source_points
+    usv = [m.svd() for m in source_points.transpose(1, 2).bmm(target_points)]
+    u = torch.stack([_[0] for _ in usv])
+    v = torch.stack([_[2] for _ in usv])
+    vut = v.bmm(u.transpose(1, 2))
+    for i in range(vut.shape[0]):
+        if vut[i].det() < -0.9:
+            v[i, 2].neg_()
+            vut[i] = v[i].mm(u[i].t())
+    return vut
 
 
 def generate_random_rotation_matrix(n=1):
@@ -262,22 +138,6 @@ def generate_random_rotation_matrix(n=1):
     return quaternion_to_rotation_matrix(q)
 
 
-def generate_random_rotation_matrix_constrained(n=1, y=(-180, 180), p=(-90, 90), r=(-180, 180)):
-    r"""
-    Generate random rotation matrices with rpy constraints. Rotation in local Y(y)-X(p)-Z(r) order. (torch, batch)
-
-    :param n: Number of rotation matrices to generate.
-    :param y: Yaw range in degrees.
-    :param p: Pitch range in degrees.
-    :param r: Roll range in degrees.
-    :return: Random rotation matrices of shape [n, 3, 3].
-    """
-    ry = degree_to_radian(lerp(y[0], y[1], torch.rand(n)))
-    rp = degree_to_radian(lerp(p[0], p[1], torch.rand(n)))
-    rr = degree_to_radian(lerp(r[0], r[1], torch.rand(n)))
-    return euler_angle_to_rotation_matrix(torch.stack((ry, rp, rr), dim=1), seq='YXZ')
-
-
 def axis_angle_to_rotation_matrix(a: torch.Tensor):
     r"""
     Turn axis-angles into rotation matrices. (torch, batch)
@@ -285,8 +145,8 @@ def axis_angle_to_rotation_matrix(a: torch.Tensor):
     :param a: Axis-angle tensor that can reshape to [batch_size, 3].
     :return: Rotation matrix of shape [batch_size, 3, 3].
     """
-    axis, angle = normalize_tensor(a.view(-1, 3), return_norm=True)
-    axis[torch.isnan(axis) | torch.isinf(axis)] = 0
+    axis, angle = normalize_tensor(a.reshape(-1, 3), return_norm=True)
+    axis[torch.isnan(axis)] = 0
     i_cube = torch.eye(3, device=a.device).expand(angle.shape[0], 3, 3)
     c, s = angle.cos().view(-1, 1, 1), angle.sin().view(-1, 1, 1)
     r = c * i_cube + (1 - c) * torch.bmm(axis.view(-1, 3, 1), axis.view(-1, 1, 3)) + s * vector_cross_matrix(axis)
@@ -306,6 +166,20 @@ def rotation_matrix_to_axis_angle(r: torch.Tensor):
     return result
 
 
+def rotation_matrix_2_angle(rot_mat):
+    # Convert rotation matrix to angle
+    batch_size = rot_mat.size(0)
+    rot_mat = rot_mat.view(batch_size, 3, 3)
+
+    cos_theta = 0.5 * (rot_mat[:, 0, 0] + rot_mat[:, 1, 1] + rot_mat[:, 2, 2] - 1)
+    theta = torch.acos(torch.clamp(cos_theta, -1.0, 1.0))
+
+    # axis = (rot_mat - rot_mat.transpose(1, 2)) / (2 * torch.sin(theta).unsqueeze(1))
+    angle = theta.unsqueeze(1)
+
+    return angle
+
+
 def r6d_to_rotation_matrix(r6d: torch.Tensor):
     r"""
     Turn 6D vectors into rotation matrices. (torch, batch)
@@ -315,7 +189,7 @@ def r6d_to_rotation_matrix(r6d: torch.Tensor):
     :param r6d: 6D vector tensor that can reshape to [batch_size, 6].
     :return: Rotation matrix tensor of shape [batch_size, 3, 3].
     """
-    r6d = r6d.view(-1, 6)
+    r6d = r6d.reshape(-1, 6)
     column0 = normalize_tensor(r6d[:, 0:3])
     column1 = normalize_tensor(r6d[:, 3:6] - (column0 * r6d[:, 3:6]).sum(dim=1, keepdim=True) * column0)
     column2 = column0.cross(column1, dim=1)
@@ -323,6 +197,14 @@ def r6d_to_rotation_matrix(r6d: torch.Tensor):
     r[torch.isnan(r)] = 0
     return r
 
+def r6d_norm(r6d):
+    origin_shape = r6d.shape
+    r6d = r6d.reshape(-1, 6)
+    column0 = normalize_tensor(r6d[:, 0:3])
+    column1 = normalize_tensor(r6d[:, 3:6] - (column0 * r6d[:, 3:6]).sum(dim=1, keepdim=True) * column0)
+    r = torch.cat([column0, column1], dim=-1)
+    r = r.reshape(origin_shape)
+    return r
 
 def rotation_matrix_to_r6d(r: torch.Tensor):
     r"""
@@ -331,8 +213,18 @@ def rotation_matrix_to_r6d(r: torch.Tensor):
     :param r: Rotation matrix tensor that can reshape to [batch_size, 3, 3].
     :return: 6D vector tensor of shape [batch_size, 6].
     """
-    return r.view(-1, 3, 3)[:, :, :2].transpose(1, 2).contiguous().clone().view(-1, 6)
+    return r.view(-1, 3, 3)[:, :, :2].transpose(1, 2).reshape(-1, 6)
 
+def imu_rotation_matrix_to_r6d(r: torch.Tensor):
+    r"""
+    Turn rotation matrices into 6D vectors. (torch, batch)
+
+    :param r: Rotation matrix tensor that can reshape to [batch_size, imu_num, 3, 3].
+    :return: 6D vector tensor of shape [batch_size,imu_num, 6].
+    """
+    batch_size = r.size(0)
+    imu_num = r.size(1)
+    return r.view(batch_size, imu_num, 3, 3)[:, :, :, :2].transpose(2, 3).clone().view(batch_size, imu_num, 6)
 
 def quaternion_to_axis_angle(q: torch.Tensor):
     r"""
@@ -344,10 +236,9 @@ def quaternion_to_axis_angle(q: torch.Tensor):
     :return: Axis-angle tensor of shape [batch_size, 3].
     """
     q = normalize_tensor(q.view(-1, 4))
-    q[q[:, 0] < 0] = -q[q[:, 0] < 0]
     theta_half = q[:, 0].clamp(min=-1, max=1).acos()
     a = (q[:, 1:] / theta_half.sin().view(-1, 1) * 2 * theta_half.view(-1, 1)).view(-1, 3)
-    a[theta_half < 1e-6] = q[theta_half < 1e-6][:, 1:] * 2
+    a[torch.isnan(a)] = 0
     return a
 
 
