@@ -100,7 +100,6 @@ def evaluate_pose(model, dataset, calibrator:TicOperator, save_dir=None, use_cal
                 
                 rot_cali, acc_cali, _, use_calis = calibrator.run_per_frame(rot, acc)
                 acc_cali = acc_cali / amass.acc_scale
-                
                 x = torch.cat((acc_cali.flatten(1), rot_cali.flatten(1)), dim=1)
                 
             model.reset()

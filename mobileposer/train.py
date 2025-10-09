@@ -25,7 +25,7 @@ trainner = TicTrainner(model=model, data=data_train, optimizer=optimizer, batch_
 
 # trainner.restore(checkpoint_path='checkpoint/TIC_13.pth', load_optimizer=True)
 epoch=20
-model_name = f'RealData_0915_4pants_2345'
+model_name = f'RealData_0915_4pants_12345'
 ckpt_path = f'./data/checkpoints/calibrator/{model_name}'
 os.makedirs(ckpt_path, exist_ok=True)
 print(model_name)
